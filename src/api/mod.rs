@@ -2,6 +2,7 @@
 
 pub mod health;
 mod middleware;
+pub mod schemas;
 pub mod subjects;
 
 use axum::{Router, extract::DefaultBodyLimit, routing::{get, post}};
@@ -11,6 +12,7 @@ use sqlx::PgPool;
 pub fn router(pool: PgPool, max_body_size: usize) -> Router {
     Router::new()
         .route("/health", get(health::health))
+        .route("/schemas/ids/{id}", get(schemas::get_schema_by_id))
         .route(
             "/subjects/{subject}/versions",
             post(subjects::register_schema),

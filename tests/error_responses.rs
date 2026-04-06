@@ -27,3 +27,11 @@ async fn backend_data_store() {
     assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
     assert_eq!(body["error_code"], 50001);
 }
+
+#[tokio::test]
+async fn schema_not_found() {
+    let (status, body) = error_response(KoraError::SchemaNotFound).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(body["error_code"], 40403);
+    assert_eq!(body["message"], "Schema not found");
+}

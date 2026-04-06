@@ -57,3 +57,14 @@ pub async fn insert(pool: &PgPool, schema: &NewSchema<'_>) -> Result<i64, sqlx::
     .fetch_one(pool)
     .await
 }
+
+/// Find a schema by its global ID (ignores soft-delete — IDs are permanent).
+///
+/// # Errors
+///
+/// Returns a database error on connection failure.
+pub async fn find_by_id(pool: &PgPool, id: i64) -> Result<Option<String>, sqlx::Error> {
+    sqlx::query_scalar!("SELECT schema_text FROM schemas WHERE id = $1", id)
+        .fetch_optional(pool)
+        .await
+}

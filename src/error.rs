@@ -15,6 +15,9 @@ pub enum KoraError {
     /// Invalid schema (42201).
     #[error("Invalid schema: {0}")]
     InvalidSchema(String),
+    /// Schema not found (40403).
+    #[error("Schema not found")]
+    SchemaNotFound,
     /// Backend data store error (50001).
     #[error("Error in the backend data store: {0}")]
     BackendDataStore(String),
@@ -38,6 +41,7 @@ impl KoraError {
     const fn error_code(&self) -> u32 {
         match self {
             Self::InvalidSchema(_) => 42201,
+            Self::SchemaNotFound => 40403,
             Self::BackendDataStore(_) => 50001,
         }
     }
@@ -46,6 +50,7 @@ impl KoraError {
     const fn status_code(&self) -> StatusCode {
         match self {
             Self::InvalidSchema(_) => StatusCode::UNPROCESSABLE_ENTITY,
+            Self::SchemaNotFound => StatusCode::NOT_FOUND,
             Self::BackendDataStore(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
