@@ -288,7 +288,7 @@ OpenAPI/Swagger specification generated from the Confluent Schema Registry API s
 
 ### Integration
 
-- 100% wire-compatible with Confluent Schema Registry API v7
+- 100% wire-compatible with Confluent Schema Registry API
 - Compatible with: confluent-kafka-python, confluent-kafka-go, io.confluent serde (Java), Debezium, Kafka Connect, ksqlDB
 - Content-type negotiation: `application/vnd.schemaregistry.v1+json` and `application/json`
 - Confluent error code compatibility for all error responses

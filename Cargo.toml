@@ -8,7 +8,7 @@ apache-avro = "0.21.0"
 axum = "0.8.8"
 chrono = { version = "0.4.44", features = ["serde"] }
 dashmap = "6.1.0"
-figment = { version = "0.10.19", features = ["toml", "env"] }
+figment = { version = "0.10.19", features = ["env"] }
 jsonschema = { version = "0.45.0", default-features = false }
 metrics = "0.24.3"
 metrics-exporter-prometheus = "0.18.1"

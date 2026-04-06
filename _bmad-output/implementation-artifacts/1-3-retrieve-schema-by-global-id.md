@@ -126,7 +126,7 @@ From story 1.2 completion:
 - [Source: epics.md — Epic 1, Story 1.3]
 - [Source: prd.md — FR2]
 - [Source: architecture.md — schemas.rs: GET /schemas/ids/{id}]
-- [Source: Confluent API v7.6 — GET /schemas/ids/{int: id}]
+- [Source: Confluent Schema Registry API — GET /schemas/ids/{int: id}]
 - [Source: 1-2-register-avro-schema.md — Completion Notes, Review Findings]
 
 ### Review Findings

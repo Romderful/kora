@@ -1,7 +1,7 @@
 //! Application configuration loaded via figment.
 
 use figment::{
-    providers::{Env, Format, Serialized, Toml},
+    providers::{Env, Serialized},
     Figment,
 };
 use serde::{Deserialize, Serialize};
@@ -54,20 +54,18 @@ impl Default for KoraConfig {
 }
 
 impl KoraConfig {
-    /// Load configuration from defaults, optional `kora.toml`, and environment variables.
+    /// Load configuration from defaults and environment variables.
     ///
-    /// Layer order (last wins): defaults → `kora.toml` → env vars.
-    /// Environment variables use the `KORA_` prefix (e.g. `KORA_PORT=9090`).
-    /// `DATABASE_URL` is also accepted without prefix for convenience.
+    /// Layer order (last wins): defaults → env vars.
+    /// Uses direct variable names: `DATABASE_URL`, `HOST`, `PORT`,
+    /// `LOG_LEVEL`, `MAX_BODY_SIZE`.
     ///
     /// # Errors
     ///
     /// Returns an error if required values are missing or cannot be parsed.
     pub fn load() -> Result<Self, Box<figment::Error>> {
         Figment::from(Serialized::defaults(Self::default()))
-            .merge(Toml::file("kora.toml"))
-            .merge(Env::prefixed("KORA_"))
-            .merge(Env::raw().only(&["DATABASE_URL"]))
+            .merge(Env::raw().only(&["DATABASE_URL", "HOST", "PORT", "LOG_LEVEL", "MAX_BODY_SIZE"]))
             .extract()
             .map_err(Box::new)
     }

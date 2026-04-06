@@ -47,7 +47,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 |---|---|---|
 | Rust | Product Brief | Language for all components |
 | PostgreSQL | PRD FR-ST-01 | Single storage backend |
-| Confluent SR API v7 | PRD FR-AC-01 | Wire-compatible REST API — exact endpoint paths, response shapes, error codes |
+| Confluent SR API | PRD FR-AC-01 | Wire-compatible REST API — exact endpoint paths, response shapes, error codes |
 | 3 Schema Formats | PRD FR-SF-01/02/03 | Avro, JSON Schema, Protobuf — each needs a dedicated parser |
 | Docker all-in-one | PRD User Journey (Nadia) | Embedded PG in container, auto-detected via DATABASE_URL |
 | No auth in MVP | PRD Scope | Simplifies middleware, but must not preclude future addition |

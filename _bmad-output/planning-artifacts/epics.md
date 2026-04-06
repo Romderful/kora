@@ -77,7 +77,7 @@ NFR9: No single point of data loss: PG backup/restore is the recovery path
 NFR10: Support 100,000+ schema versions across 10,000+ subjects without performance degradation
 NFR11: Memory footprint: < 100MB RSS for the Kora process under typical load (excluding PG)
 NFR12: Linear throughput scaling with connection count up to system resource limits
-NFR13: 100% wire-compatible with Confluent Schema Registry API v7
+NFR13: 100% wire-compatible with Confluent Schema Registry API
 NFR14: Compatible with: confluent-kafka-python, confluent-kafka-go, io.confluent serde (Java), Debezium, Kafka Connect, ksqlDB
 NFR15: Content-type negotiation: `application/vnd.schemaregistry.v1+json` and `application/json`
 NFR16: Confluent error code compatibility for all error responses
