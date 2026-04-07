@@ -9,7 +9,7 @@ use sqlx::PgPool;
 /// Returns a database error on connection failure.
 pub async fn upsert(pool: &PgPool, name: &str) -> Result<i64, sqlx::Error> {
     let id = sqlx::query_scalar::<_, i64>(
-        r#"WITH ins AS (
+        r"WITH ins AS (
              INSERT INTO subjects (name) VALUES ($1)
              ON CONFLICT (name) DO NOTHING
              RETURNING id
@@ -17,11 +17,23 @@ pub async fn upsert(pool: &PgPool, name: &str) -> Result<i64, sqlx::Error> {
            SELECT id FROM ins
            UNION ALL
            SELECT id FROM subjects WHERE name = $1
-           LIMIT 1"#,
+           LIMIT 1",
     )
     .bind(name)
     .fetch_one(pool)
     .await?;
 
     Ok(id)
+}
+
+/// Check if a subject exists by name.
+///
+/// # Errors
+///
+/// Returns a database error on connection failure.
+pub async fn exists(pool: &PgPool, name: &str) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM subjects WHERE name = $1)")
+        .bind(name)
+        .fetch_one(pool)
+        .await
 }

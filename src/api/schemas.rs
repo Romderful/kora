@@ -5,18 +5,10 @@ use axum::{
     extract::{Path, State},
     response::IntoResponse,
 };
-use serde::Serialize;
 use sqlx::PgPool;
 
 use crate::error::KoraError;
 use crate::storage::schemas;
-
-/// Response body for `GET /schemas/ids/{id}`.
-#[derive(Debug, Serialize)]
-pub struct GetSchemaResponse {
-    /// The raw schema string.
-    pub schema: String,
-}
 
 /// Retrieve a schema by its global ID.
 ///
@@ -34,7 +26,5 @@ pub async fn get_schema_by_id(
         .await?
         .ok_or(KoraError::SchemaNotFound)?;
 
-    Ok(Json(GetSchemaResponse {
-        schema: schema_text,
-    }))
+    Ok(Json(serde_json::json!({ "schema": schema_text })))
 }

@@ -5,7 +5,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 /// Content type for all Schema Registry responses.
 pub const CONTENT_TYPE_SCHEMA_REGISTRY: &str = "application/vnd.schemaregistry.v1+json";
@@ -16,6 +16,12 @@ pub enum KoraError {
     /// Invalid schema (42201).
     #[error("Invalid schema: {0}")]
     InvalidSchema(String),
+    /// Subject not found (40401).
+    #[error("Subject not found")]
+    SubjectNotFound,
+    /// Version not found (40402).
+    #[error("Version not found")]
+    VersionNotFound,
     /// Schema not found (40403).
     #[error("Schema not found")]
     SchemaNotFound,
@@ -31,7 +37,7 @@ impl From<sqlx::Error> for KoraError {
 }
 
 /// Confluent-compatible JSON error body.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 struct ErrorBody {
     error_code: u32,
     message: String,
@@ -42,6 +48,8 @@ impl KoraError {
     const fn error_code(&self) -> u32 {
         match self {
             Self::InvalidSchema(_) => 42201,
+            Self::SubjectNotFound => 40401,
+            Self::VersionNotFound => 40402,
             Self::SchemaNotFound => 40403,
             Self::BackendDataStore(_) => 50001,
         }
@@ -51,7 +59,9 @@ impl KoraError {
     const fn status_code(&self) -> StatusCode {
         match self {
             Self::InvalidSchema(_) => StatusCode::UNPROCESSABLE_ENTITY,
-            Self::SchemaNotFound => StatusCode::NOT_FOUND,
+            Self::SubjectNotFound | Self::VersionNotFound | Self::SchemaNotFound => {
+                StatusCode::NOT_FOUND
+            }
             Self::BackendDataStore(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }

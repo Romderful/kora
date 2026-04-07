@@ -29,6 +29,22 @@ async fn backend_data_store() {
 }
 
 #[tokio::test]
+async fn subject_not_found() {
+    let (status, body) = error_response(KoraError::SubjectNotFound).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(body["error_code"], 40401);
+    assert_eq!(body["message"], "Subject not found");
+}
+
+#[tokio::test]
+async fn version_not_found() {
+    let (status, body) = error_response(KoraError::VersionNotFound).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(body["error_code"], 40402);
+    assert_eq!(body["message"], "Version not found");
+}
+
+#[tokio::test]
 async fn schema_not_found() {
     let (status, body) = error_response(KoraError::SchemaNotFound).await;
     assert_eq!(status, StatusCode::NOT_FOUND);

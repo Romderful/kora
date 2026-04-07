@@ -68,6 +68,39 @@ pub async fn register_schema(
     Ok(Json(RegisterSchemaResponse { id }))
 }
 
+/// Retrieve a schema by subject and version.
+///
+/// `GET /subjects/{subject}/versions/{version}`
+///
+/// The version can be a number or "latest".
+///
+/// # Errors
+///
+/// Returns `KoraError::SubjectNotFound` (40401) if the subject doesn't exist,
+/// or `KoraError::VersionNotFound` (40402) if the version doesn't exist.
+pub async fn get_schema_by_version(
+    State(pool): State<PgPool>,
+    Path((subject, version)): Path<(String, String)>,
+) -> Result<impl IntoResponse, KoraError> {
+    validate_subject(&subject)?;
+
+    let row = if version == "latest" {
+        schemas::find_latest_by_subject(&pool, &subject).await?
+    } else {
+        let v: i32 = version.parse().map_err(|_| KoraError::VersionNotFound)?;
+        if v < 1 {
+            return Err(KoraError::VersionNotFound);
+        }
+        schemas::find_by_subject_version(&pool, &subject, v).await?
+    };
+
+    match row {
+        Some(sv) => Ok(Json(sv)),
+        None if subjects::exists(&pool, &subject).await? => Err(KoraError::VersionNotFound),
+        None => Err(KoraError::SubjectNotFound),
+    }
+}
+
 /// Maximum allowed length for a subject name.
 const MAX_SUBJECT_LENGTH: usize = 255;
 

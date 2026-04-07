@@ -17,6 +17,10 @@ pub fn router(pool: PgPool, max_body_size: usize) -> Router {
             "/subjects/{subject}/versions",
             post(subjects::register_schema),
         )
+        .route(
+            "/subjects/{subject}/versions/{version}",
+            get(subjects::get_schema_by_version),
+        )
         .layer(DefaultBodyLimit::max(max_body_size))
         .layer(middleware::content_type_layer())
         .with_state(pool)
