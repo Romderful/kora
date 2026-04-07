@@ -124,6 +124,28 @@ pub async fn find_latest_by_subject(
     .map(|opt| opt.as_ref().map(row_to_schema_version))
 }
 
+/// Find a schema by subject name and fingerprint (for check-if-registered).
+///
+/// # Errors
+///
+/// Returns a database error on connection failure.
+pub async fn find_by_subject_fingerprint(
+    pool: &PgPool,
+    subject: &str,
+    fingerprint: &str,
+) -> Result<Option<SchemaVersion>, sqlx::Error> {
+    sqlx::query(
+        r"SELECT s.id, sub.name as subject, s.version, s.schema_type, s.schema_text
+           FROM schemas s JOIN subjects sub ON s.subject_id = sub.id
+           WHERE sub.name = $1 AND s.fingerprint = $2 AND s.deleted = false",
+    )
+    .bind(subject)
+    .bind(fingerprint)
+    .fetch_optional(pool)
+    .await
+    .map(|opt| opt.as_ref().map(row_to_schema_version))
+}
+
 /// List all non-deleted version numbers for a subject, sorted ascending.
 ///
 /// # Errors

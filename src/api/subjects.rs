@@ -104,6 +104,37 @@ pub async fn list_versions(
     Ok(Json(versions))
 }
 
+/// Check if a schema is registered under a subject.
+///
+/// `POST /subjects/{subject}`
+///
+/// # Errors
+///
+/// Returns `KoraError::SubjectNotFound` (40401) if the subject doesn't exist,
+/// or `KoraError::SchemaNotFound` (40403) if the schema is not registered.
+pub async fn check_schema(
+    State(pool): State<PgPool>,
+    Path(subject): Path<String>,
+    body: Result<Json<RegisterSchemaRequest>, JsonRejection>,
+) -> Result<impl IntoResponse, KoraError> {
+    let Json(body) = body.map_err(|e| KoraError::InvalidSchema(e.body_text()))?;
+
+    validate_subject(&subject)?;
+
+    let format = SchemaFormat::from_optional(body.schema_type.as_deref())?;
+    let parsed = schema::parse(format, &body.schema)?;
+
+    if !subjects::exists(&pool, &subject).await? {
+        return Err(KoraError::SubjectNotFound);
+    }
+
+    let sv = schemas::find_by_subject_fingerprint(&pool, &subject, &parsed.fingerprint)
+        .await?
+        .ok_or(KoraError::SchemaNotFound)?;
+
+    Ok(Json(sv))
+}
+
 /// Retrieve a schema by subject and version.
 ///
 /// `GET /subjects/{subject}/versions/{version}`
