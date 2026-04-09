@@ -96,6 +96,26 @@ pub async fn hard_delete_subject(client: &Client, base: &str, subject: &str) -> 
         .unwrap()
 }
 
+// -- Cross-reference operations --
+
+/// List subjects associated with a schema ID.
+pub async fn get_subjects_by_schema_id(client: &Client, base: &str, id: i64) -> Response {
+    client
+        .get(format!("{base}/schemas/ids/{id}/subjects"))
+        .send()
+        .await
+        .unwrap()
+}
+
+/// List subject-version pairs associated with a schema ID.
+pub async fn get_versions_by_schema_id(client: &Client, base: &str, id: i64) -> Response {
+    client
+        .get(format!("{base}/schemas/ids/{id}/versions"))
+        .send()
+        .await
+        .unwrap()
+}
+
 /// Hard-delete a single schema version (must be soft-deleted first).
 pub async fn hard_delete_version(client: &Client, base: &str, subject: &str, version: i32) -> Response {
     client

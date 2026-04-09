@@ -15,6 +15,8 @@ pub fn router(pool: PgPool, max_body_size: usize) -> Router {
     Router::new()
         .route("/health", get(health::health))
         .route("/schemas/ids/{id}", get(schemas::get_schema_by_id))
+        .route("/schemas/ids/{id}/subjects", get(schemas::get_subjects_by_schema_id))
+        .route("/schemas/ids/{id}/versions", get(schemas::get_versions_by_schema_id))
         .route("/schemas/types", get(schemas::list_types))
         .route("/subjects", get(subjects::list_subjects))
         .route("/subjects/{subject}", post(subjects::check_schema).delete(subjects::delete_subject))

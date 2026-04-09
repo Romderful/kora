@@ -36,6 +36,44 @@ pub async fn get_schema_by_id(
     })))
 }
 
+/// List subjects associated with a schema ID.
+///
+/// `GET /schemas/ids/{id}/subjects`
+///
+/// # Errors
+///
+/// Returns `KoraError::SchemaNotFound` (404) if no schema exists with the
+/// given ID, or `KoraError::BackendDataStore` (500) for database failures.
+pub async fn get_subjects_by_schema_id(
+    State(pool): State<PgPool>,
+    Path(id): Path<i64>,
+) -> Result<impl IntoResponse, KoraError> {
+    if !schemas::exists(&pool, id).await? {
+        return Err(KoraError::SchemaNotFound);
+    }
+    let subjects = schemas::find_subjects_by_id(&pool, id).await?;
+    Ok(Json(subjects))
+}
+
+/// List subject-version pairs associated with a schema ID.
+///
+/// `GET /schemas/ids/{id}/versions`
+///
+/// # Errors
+///
+/// Returns `KoraError::SchemaNotFound` (404) if no schema exists with the
+/// given ID, or `KoraError::BackendDataStore` (500) for database failures.
+pub async fn get_versions_by_schema_id(
+    State(pool): State<PgPool>,
+    Path(id): Path<i64>,
+) -> Result<impl IntoResponse, KoraError> {
+    if !schemas::exists(&pool, id).await? {
+        return Err(KoraError::SchemaNotFound);
+    }
+    let versions = schemas::find_versions_by_id(&pool, id).await?;
+    Ok(Json(versions))
+}
+
 /// List supported schema types.
 ///
 /// `GET /schemas/types`

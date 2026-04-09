@@ -18,6 +18,15 @@ pub struct NewSchema<'a> {
     pub fingerprint: &'a str,
 }
 
+/// A subject-version pair, returned by schema ID cross-reference lookups.
+#[derive(Debug, serde::Serialize)]
+pub struct SubjectVersion {
+    /// Subject name.
+    pub subject: String,
+    /// Version number within the subject.
+    pub version: i32,
+}
+
 /// A schema with its subject context, returned by version lookups.
 #[derive(Debug, serde::Serialize)]
 pub struct SchemaVersion {
@@ -241,6 +250,63 @@ pub async fn find_by_id(pool: &PgPool, id: i64) -> Result<Option<(String, String
         .fetch_optional(pool)
         .await
         .map(|opt| opt.as_ref().map(|row| (row.get("schema_text"), row.get("schema_type"))))
+}
+
+/// Check if a schema exists by global ID (ignores soft-delete — IDs are permanent).
+///
+/// # Errors
+///
+/// Returns a database error on connection failure.
+pub async fn exists(pool: &PgPool, id: i64) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM schemas WHERE id = $1)")
+        .bind(id)
+        .fetch_one(pool)
+        .await
+}
+
+/// Find all subjects that use a given schema ID (excludes soft-deleted).
+///
+/// # Errors
+///
+/// Returns a database error on connection failure.
+pub async fn find_subjects_by_id(pool: &PgPool, id: i64) -> Result<Vec<String>, sqlx::Error> {
+    sqlx::query_scalar::<_, String>(
+        r"SELECT sub.name
+           FROM schemas s JOIN subjects sub ON s.subject_id = sub.id
+           WHERE s.id = $1 AND s.deleted = false AND sub.deleted = false
+           ORDER BY sub.name",
+    )
+    .bind(id)
+    .fetch_all(pool)
+    .await
+}
+
+/// Find all subject-version pairs that use a given schema ID (excludes soft-deleted).
+///
+/// # Errors
+///
+/// Returns a database error on connection failure.
+pub async fn find_versions_by_id(
+    pool: &PgPool,
+    id: i64,
+) -> Result<Vec<SubjectVersion>, sqlx::Error> {
+    sqlx::query(
+        r"SELECT sub.name as subject, s.version
+           FROM schemas s JOIN subjects sub ON s.subject_id = sub.id
+           WHERE s.id = $1 AND s.deleted = false AND sub.deleted = false
+           ORDER BY sub.name, s.version",
+    )
+    .bind(id)
+    .fetch_all(pool)
+    .await
+    .map(|rows| {
+        rows.iter()
+            .map(|row| SubjectVersion {
+                subject: row.get("subject"),
+                version: row.get("version"),
+            })
+            .collect()
+    })
 }
 
 // -- Helpers --
