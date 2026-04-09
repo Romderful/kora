@@ -5,7 +5,7 @@ mod common;
 use reqwest::StatusCode;
 
 #[tokio::test]
-async fn health_returns_200_when_pg_is_up() {
+async fn health_pg_up_returns_200() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
 

@@ -5,7 +5,7 @@ mod common;
 use reqwest::StatusCode;
 
 #[tokio::test]
-async fn get_schema_by_id_returns_schema() {
+async fn get_schema_by_id_succeeds() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("get-by-id-{}", uuid::Uuid::new_v4());
@@ -23,7 +23,7 @@ async fn get_schema_by_id_returns_schema() {
 }
 
 #[tokio::test]
-async fn get_schema_by_nonexistent_id_returns_404() {
+async fn get_schema_by_id_nonexistent_returns_404() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
 
@@ -36,7 +36,7 @@ async fn get_schema_by_nonexistent_id_returns_404() {
 }
 
 #[tokio::test]
-async fn get_soft_deleted_schema_by_id_still_returns_200() {
+async fn get_schema_by_id_soft_deleted_still_returns_200() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("soft-del-{}", uuid::Uuid::new_v4());
@@ -53,7 +53,7 @@ async fn get_soft_deleted_schema_by_id_still_returns_200() {
 }
 
 #[tokio::test]
-async fn get_schema_by_invalid_id_returns_400() {
+async fn get_schema_by_id_invalid_returns_400() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
 

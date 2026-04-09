@@ -14,7 +14,7 @@ async fn error_response(error: KoraError) -> (StatusCode, serde_json::Value) {
 }
 
 #[tokio::test]
-async fn invalid_schema() {
+async fn error_invalid_schema_returns_42201() {
     let (status, body) = error_response(KoraError::InvalidSchema("bad field".into())).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
     assert_eq!(body["error_code"], 42201);
@@ -22,14 +22,14 @@ async fn invalid_schema() {
 }
 
 #[tokio::test]
-async fn backend_data_store() {
+async fn error_backend_data_store_returns_50001() {
     let (status, body) = error_response(KoraError::BackendDataStore("test".into())).await;
     assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
     assert_eq!(body["error_code"], 50001);
 }
 
 #[tokio::test]
-async fn subject_not_found() {
+async fn error_subject_not_found_returns_40401() {
     let (status, body) = error_response(KoraError::SubjectNotFound).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
     assert_eq!(body["error_code"], 40401);
@@ -37,7 +37,7 @@ async fn subject_not_found() {
 }
 
 #[tokio::test]
-async fn version_not_found() {
+async fn error_version_not_found_returns_40402() {
     let (status, body) = error_response(KoraError::VersionNotFound).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
     assert_eq!(body["error_code"], 40402);
@@ -45,7 +45,7 @@ async fn version_not_found() {
 }
 
 #[tokio::test]
-async fn schema_not_found() {
+async fn error_schema_not_found_returns_40403() {
     let (status, body) = error_response(KoraError::SchemaNotFound).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
     assert_eq!(body["error_code"], 40403);

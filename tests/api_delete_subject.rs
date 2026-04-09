@@ -6,7 +6,7 @@ mod common;
 use reqwest::StatusCode;
 
 #[tokio::test]
-async fn delete_subject_returns_versions() {
+async fn soft_delete_subject_succeeds_returns_versions() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("del-{}", uuid::Uuid::new_v4());
@@ -23,7 +23,7 @@ async fn delete_subject_returns_versions() {
 }
 
 #[tokio::test]
-async fn deleted_subject_excluded_from_list() {
+async fn soft_delete_subject_excluded_from_list() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("del-list-{}", uuid::Uuid::new_v4());
@@ -36,7 +36,7 @@ async fn deleted_subject_excluded_from_list() {
 }
 
 #[tokio::test]
-async fn deleted_true_includes_all_subjects() {
+async fn soft_delete_subject_included_with_deleted_flag() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let active = format!("del-active-{}", uuid::Uuid::new_v4());
@@ -56,7 +56,7 @@ async fn deleted_true_includes_all_subjects() {
 }
 
 #[tokio::test]
-async fn delete_single_version() {
+async fn soft_delete_version_single_succeeds() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("del-ver-{}", uuid::Uuid::new_v4());
@@ -76,7 +76,7 @@ async fn delete_single_version() {
 }
 
 #[tokio::test]
-async fn deleted_versions_listed_with_deleted_flag() {
+async fn soft_delete_version_included_with_deleted_flag() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("del-ver-flag-{}", uuid::Uuid::new_v4());
@@ -93,7 +93,7 @@ async fn deleted_versions_listed_with_deleted_flag() {
 }
 
 #[tokio::test]
-async fn delete_already_deleted_subject_returns_40401() {
+async fn soft_delete_subject_already_deleted_returns_40401() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("del-twice-{}", uuid::Uuid::new_v4());
@@ -110,7 +110,7 @@ async fn delete_already_deleted_subject_returns_40401() {
 }
 
 #[tokio::test]
-async fn delete_nonexistent_subject_returns_40401() {
+async fn soft_delete_subject_nonexistent_returns_40401() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
 
@@ -122,7 +122,7 @@ async fn delete_nonexistent_subject_returns_40401() {
 }
 
 #[tokio::test]
-async fn delete_nonexistent_version_returns_40402() {
+async fn soft_delete_version_nonexistent_returns_40402() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("del-ver404-{}", uuid::Uuid::new_v4());
@@ -137,7 +137,7 @@ async fn delete_nonexistent_version_returns_40402() {
 }
 
 #[tokio::test]
-async fn delete_latest_version() {
+async fn soft_delete_version_latest_succeeds() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("del-latest-{}", uuid::Uuid::new_v4());

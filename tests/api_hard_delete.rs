@@ -6,7 +6,7 @@ mod common;
 use reqwest::StatusCode;
 
 #[tokio::test]
-async fn hard_delete_subject_after_soft_delete() {
+async fn hard_delete_subject_after_soft_delete_succeeds() {
     let base = common::spawn_server().await;
     let pool = common::pool().await;
     let client = reqwest::Client::new();
@@ -32,7 +32,7 @@ async fn hard_delete_subject_after_soft_delete() {
 }
 
 #[tokio::test]
-async fn hard_delete_version_after_soft_delete() {
+async fn hard_delete_version_after_soft_delete_succeeds() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("hard-ver-{}", uuid::Uuid::new_v4());
@@ -52,7 +52,7 @@ async fn hard_delete_version_after_soft_delete() {
 }
 
 #[tokio::test]
-async fn hard_delete_non_soft_deleted_subject_returns_40401() {
+async fn hard_delete_subject_without_soft_delete_returns_40401() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("hard-nosoft-{}", uuid::Uuid::new_v4());
@@ -67,7 +67,7 @@ async fn hard_delete_non_soft_deleted_subject_returns_40401() {
 }
 
 #[tokio::test]
-async fn hard_delete_non_soft_deleted_version_returns_40402() {
+async fn hard_delete_version_without_soft_delete_returns_40402() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("hard-ver-nosoft-{}", uuid::Uuid::new_v4());
@@ -82,7 +82,7 @@ async fn hard_delete_non_soft_deleted_version_returns_40402() {
 }
 
 #[tokio::test]
-async fn hard_delete_already_hard_deleted_returns_40401() {
+async fn hard_delete_subject_twice_returns_40401() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("hard-twice-{}", uuid::Uuid::new_v4());

@@ -5,10 +5,98 @@ mod common;
 use reqwest::StatusCode;
 use sqlx::Row;
 
+// -- Common (format-agnostic) --
+
+#[tokio::test]
+async fn register_schema_without_type_defaults_to_avro() {
+    let base = common::spawn_server().await;
+    let client = reqwest::Client::new();
+    let subject = format!("default-type-{}", uuid::Uuid::new_v4());
+
+    let id = common::api::register_schema(&client, &base, &subject, common::AVRO_SCHEMA_V1).await;
+    assert!(id > 0);
+}
+
+#[tokio::test]
+async fn register_schema_creates_subject_implicitly() {
+    let base = common::spawn_server().await;
+    let client = reqwest::Client::new();
+    let pool = common::pool().await;
+    let subject = format!("implicit-{}", uuid::Uuid::new_v4());
+
+    let count: i64 = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM subjects WHERE name = $1")
+        .bind(&subject)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(count, 0);
+
+    common::api::register_schema(&client, &base, &subject, common::AVRO_SCHEMA_V1).await;
+
+    let count: i64 = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM subjects WHERE name = $1")
+        .bind(&subject)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(count, 1);
+}
+
+#[tokio::test]
+async fn register_schema_empty_subject_returns_422() {
+    let base = common::spawn_server().await;
+    let client = reqwest::Client::new();
+
+    // Null char subject — must be inline (edge case subject).
+    let resp = client
+        .post(format!("{base}/subjects/%00/versions"))
+        .json(&serde_json::json!({"schema": common::AVRO_SCHEMA_V1}))
+        .send()
+        .await
+        .unwrap();
+
+    assert_ne!(resp.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn register_schema_missing_body_returns_422() {
+    let base = common::spawn_server().await;
+    let client = reqwest::Client::new();
+
+    // Empty body — must be inline (custom body/header).
+    let resp = client
+        .post(format!("{base}/subjects/test-value/versions"))
+        .header("content-type", "application/json")
+        .body("{}")
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    let body: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(body["error_code"], 42201, "should return Confluent error format");
+}
+
+#[tokio::test]
+async fn register_schema_lowercase_type_succeeds() {
+    let base = common::spawn_server().await;
+    let client = reqwest::Client::new();
+
+    // Custom schemaType field — must be inline (custom body).
+    let resp = client
+        .post(format!("{base}/subjects/lowercase-type/versions"))
+        .json(&serde_json::json!({"schema": common::AVRO_SCHEMA_V1, "schemaType": "avro"}))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+}
+
 // -- Avro Schema --
 
 #[tokio::test]
-async fn register_valid_avro_schema() {
+async fn register_avro_schema_valid_succeeds() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let pool = common::pool().await;
@@ -36,7 +124,7 @@ async fn register_valid_avro_schema() {
 }
 
 #[tokio::test]
-async fn register_same_schema_is_idempotent() {
+async fn register_avro_schema_idempotent_returns_same_id() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let pool = common::pool().await;
@@ -58,7 +146,7 @@ async fn register_same_schema_is_idempotent() {
 }
 
 #[tokio::test]
-async fn register_invalid_schema_returns_422() {
+async fn register_avro_schema_invalid_returns_422() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
 
@@ -76,96 +164,10 @@ async fn register_invalid_schema_returns_422() {
     assert_eq!(body["error_code"], 42201);
 }
 
-#[tokio::test]
-async fn register_without_schema_type_defaults_to_avro() {
-    let base = common::spawn_server().await;
-    let client = reqwest::Client::new();
-    let subject = format!("default-type-{}", uuid::Uuid::new_v4());
-
-    let id = common::api::register_schema(&client, &base, &subject, common::AVRO_SCHEMA_V1).await;
-    assert!(id > 0);
-}
-
-#[tokio::test]
-async fn register_creates_subject_implicitly() {
-    let base = common::spawn_server().await;
-    let client = reqwest::Client::new();
-    let pool = common::pool().await;
-    let subject = format!("implicit-{}", uuid::Uuid::new_v4());
-
-    let count: i64 = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM subjects WHERE name = $1")
-        .bind(&subject)
-        .fetch_one(&pool)
-        .await
-        .unwrap();
-    assert_eq!(count, 0);
-
-    common::api::register_schema(&client, &base, &subject, common::AVRO_SCHEMA_V1).await;
-
-    let count: i64 = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM subjects WHERE name = $1")
-        .bind(&subject)
-        .fetch_one(&pool)
-        .await
-        .unwrap();
-    assert_eq!(count, 1);
-}
-
-#[tokio::test]
-async fn register_with_empty_subject_returns_422() {
-    let base = common::spawn_server().await;
-    let client = reqwest::Client::new();
-
-    // Null char subject — must be inline (edge case subject).
-    let resp = client
-        .post(format!("{base}/subjects/%00/versions"))
-        .json(&serde_json::json!({"schema": common::AVRO_SCHEMA_V1}))
-        .send()
-        .await
-        .unwrap();
-
-    assert_ne!(resp.status(), StatusCode::OK);
-}
-
-#[tokio::test]
-async fn register_with_missing_body_returns_422() {
-    let base = common::spawn_server().await;
-    let client = reqwest::Client::new();
-
-    // Empty body — must be inline (custom body/header).
-    let resp = client
-        .post(format!("{base}/subjects/test-value/versions"))
-        .header("content-type", "application/json")
-        .body("{}")
-        .send()
-        .await
-        .unwrap();
-
-    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
-
-    let body: serde_json::Value = resp.json().await.unwrap();
-    assert_eq!(body["error_code"], 42201, "should return Confluent error format");
-}
-
-#[tokio::test]
-async fn register_with_lowercase_schema_type_succeeds() {
-    let base = common::spawn_server().await;
-    let client = reqwest::Client::new();
-
-    // Custom schemaType field — must be inline (custom body).
-    let resp = client
-        .post(format!("{base}/subjects/lowercase-type/versions"))
-        .json(&serde_json::json!({"schema": common::AVRO_SCHEMA_V1, "schemaType": "avro"}))
-        .send()
-        .await
-        .unwrap();
-
-    assert_eq!(resp.status(), StatusCode::OK);
-}
-
 // -- JSON Schema --
 
 #[tokio::test]
-async fn register_valid_json_schema() {
+async fn register_json_schema_valid_succeeds() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("json-reg-{}", uuid::Uuid::new_v4());
@@ -177,7 +179,7 @@ async fn register_valid_json_schema() {
 }
 
 #[tokio::test]
-async fn register_invalid_json_schema_returns_422() {
+async fn register_json_schema_invalid_returns_422() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
 
@@ -194,7 +196,7 @@ async fn register_invalid_json_schema_returns_422() {
 }
 
 #[tokio::test]
-async fn retrieve_json_schema_includes_schema_type() {
+async fn register_json_schema_retrieve_includes_type() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("json-type-{}", uuid::Uuid::new_v4());
@@ -211,7 +213,7 @@ async fn retrieve_json_schema_includes_schema_type() {
 }
 
 #[tokio::test]
-async fn json_schema_idempotent_registration() {
+async fn register_json_schema_idempotent_returns_same_id() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("json-idem-{}", uuid::Uuid::new_v4());
@@ -226,7 +228,7 @@ async fn json_schema_idempotent_registration() {
 }
 
 #[tokio::test]
-async fn json_schema_listed_under_subject_versions() {
+async fn register_json_schema_listed_under_versions() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("json-ver-{}", uuid::Uuid::new_v4());
@@ -240,7 +242,7 @@ async fn json_schema_listed_under_subject_versions() {
 }
 
 #[tokio::test]
-async fn register_json_schema_deduplicates_reordered_keys() {
+async fn register_json_schema_reordered_keys_deduplicates() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("json-dedup-{}", uuid::Uuid::new_v4());

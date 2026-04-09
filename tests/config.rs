@@ -4,7 +4,7 @@ use figment::{Figment, providers::Serialized};
 use kora::config::KoraConfig;
 
 #[test]
-fn defaults_are_applied() {
+fn config_defaults_applied() {
     let cfg: KoraConfig = Figment::from(Serialized::defaults(KoraConfig::default()))
         .extract()
         .expect("defaults should parse");
@@ -15,7 +15,7 @@ fn defaults_are_applied() {
 }
 
 #[test]
-fn env_overrides_defaults() {
+fn config_env_overrides_defaults() {
     let cfg: KoraConfig = Figment::from(Serialized::defaults(KoraConfig::default()))
         .merge(("port", 9090_u16))
         .merge(("host", "127.0.0.1"))
@@ -29,7 +29,7 @@ fn env_overrides_defaults() {
 }
 
 #[test]
-fn database_url_required_for_startup() {
+fn config_database_url_required() {
     let cfg: KoraConfig = Figment::from(Serialized::defaults(KoraConfig::default()))
         .extract()
         .expect("defaults should parse");

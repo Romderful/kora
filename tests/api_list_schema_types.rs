@@ -5,7 +5,7 @@ mod common;
 use reqwest::StatusCode;
 
 #[tokio::test]
-async fn list_schema_types() {
+async fn list_schema_types_returns_all_formats() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
 

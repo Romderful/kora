@@ -6,7 +6,7 @@ mod common;
 use reqwest::StatusCode;
 
 #[tokio::test]
-async fn check_registered_schema_returns_200() {
+async fn check_schema_registered_returns_200() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("check-{}", uuid::Uuid::new_v4());
@@ -26,7 +26,7 @@ async fn check_registered_schema_returns_200() {
 }
 
 #[tokio::test]
-async fn check_unregistered_schema_returns_40403() {
+async fn check_schema_unregistered_returns_40403() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("check-miss-{}", uuid::Uuid::new_v4());
@@ -42,7 +42,7 @@ async fn check_unregistered_schema_returns_40403() {
 }
 
 #[tokio::test]
-async fn check_on_nonexistent_subject_returns_40401() {
+async fn check_schema_nonexistent_subject_returns_40401() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
 

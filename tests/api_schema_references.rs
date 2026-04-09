@@ -9,7 +9,7 @@ use reqwest::StatusCode;
 // -- Registration with valid references (AC #1) --
 
 #[tokio::test]
-async fn register_schema_with_valid_reference() {
+async fn register_schema_with_valid_ref_succeeds() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let ref_subject = format!("ref-base-{}", uuid::Uuid::new_v4());
@@ -30,7 +30,7 @@ async fn register_schema_with_valid_reference() {
 }
 
 #[tokio::test]
-async fn register_schema_without_references_still_works() {
+async fn register_schema_without_refs_succeeds() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("ref-norefs-{}", uuid::Uuid::new_v4());
@@ -42,7 +42,7 @@ async fn register_schema_without_references_still_works() {
 // -- Registration with invalid references (AC #2) --
 
 #[tokio::test]
-async fn register_schema_with_nonexistent_subject_reference_returns_422() {
+async fn register_schema_ref_nonexistent_subject_returns_422() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("ref-badsubj-{}", uuid::Uuid::new_v4());
@@ -58,7 +58,7 @@ async fn register_schema_with_nonexistent_subject_reference_returns_422() {
 }
 
 #[tokio::test]
-async fn register_schema_with_nonexistent_version_reference_returns_422() {
+async fn register_schema_ref_nonexistent_version_returns_422() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let ref_subject = format!("ref-badver-{}", uuid::Uuid::new_v4());
@@ -81,7 +81,7 @@ async fn register_schema_with_nonexistent_version_reference_returns_422() {
 // -- Deletion protection (AC #3) --
 
 #[tokio::test]
-async fn hard_delete_referenced_version_returns_422() {
+async fn hard_delete_version_referenced_returns_422() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let ref_subject = format!("ref-prot-{}", uuid::Uuid::new_v4());
@@ -106,7 +106,7 @@ async fn hard_delete_referenced_version_returns_422() {
 }
 
 #[tokio::test]
-async fn hard_delete_unreferenced_version_still_works() {
+async fn hard_delete_version_unreferenced_succeeds() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("ref-unref-{}", uuid::Uuid::new_v4());
@@ -120,7 +120,7 @@ async fn hard_delete_unreferenced_version_still_works() {
 }
 
 #[tokio::test]
-async fn hard_delete_subject_with_referenced_version_returns_422() {
+async fn hard_delete_subject_with_ref_version_returns_422() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let ref_subject = format!("ref-subjprot-{}", uuid::Uuid::new_v4());
@@ -170,7 +170,7 @@ async fn hard_delete_dependent_then_referenced_succeeds() {
 }
 
 #[tokio::test]
-async fn soft_delete_referenced_version_still_works() {
+async fn soft_delete_version_referenced_succeeds() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let ref_subject = format!("ref-soft-{}", uuid::Uuid::new_v4());

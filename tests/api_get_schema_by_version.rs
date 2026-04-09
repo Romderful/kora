@@ -6,7 +6,7 @@ mod common;
 use reqwest::StatusCode;
 
 #[tokio::test]
-async fn get_specific_version() {
+async fn get_schema_by_version_specific_succeeds() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("ver-{}", uuid::Uuid::new_v4());
@@ -27,7 +27,7 @@ async fn get_specific_version() {
 }
 
 #[tokio::test]
-async fn get_latest_version() {
+async fn get_schema_by_version_latest_succeeds() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("latest-{}", uuid::Uuid::new_v4());
@@ -46,7 +46,7 @@ async fn get_latest_version() {
 }
 
 #[tokio::test]
-async fn unknown_subject_returns_40401() {
+async fn get_schema_by_version_unknown_subject_returns_40401() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
 
@@ -58,7 +58,7 @@ async fn unknown_subject_returns_40401() {
 }
 
 #[tokio::test]
-async fn unknown_version_returns_40402() {
+async fn get_schema_by_version_unknown_returns_40402() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("ver404-{}", uuid::Uuid::new_v4());
@@ -73,7 +73,7 @@ async fn unknown_version_returns_40402() {
 }
 
 #[tokio::test]
-async fn negative_version_returns_40402() {
+async fn get_schema_by_version_negative_returns_40402() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("neg-{}", uuid::Uuid::new_v4());
@@ -88,7 +88,7 @@ async fn negative_version_returns_40402() {
 }
 
 #[tokio::test]
-async fn zero_version_returns_40402() {
+async fn get_schema_by_version_zero_returns_40402() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("zero-{}", uuid::Uuid::new_v4());
@@ -103,7 +103,7 @@ async fn zero_version_returns_40402() {
 }
 
 #[tokio::test]
-async fn all_schemas_soft_deleted_latest_returns_40402() {
+async fn get_schema_by_version_all_deleted_latest_returns_40402() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("softdel-{}", uuid::Uuid::new_v4());

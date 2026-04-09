@@ -10,7 +10,7 @@ use reqwest::StatusCode;
 // -- GET /schemas/ids/{id}/subjects --
 
 #[tokio::test]
-async fn get_subjects_by_schema_id_returns_subject() {
+async fn get_subjects_by_schema_id_succeeds() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("xref-subj-{}", uuid::Uuid::new_v4());
@@ -25,7 +25,7 @@ async fn get_subjects_by_schema_id_returns_subject() {
 }
 
 #[tokio::test]
-async fn get_subjects_by_nonexistent_schema_id_returns_404() {
+async fn get_subjects_by_schema_id_nonexistent_returns_404() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
 
@@ -37,7 +37,7 @@ async fn get_subjects_by_nonexistent_schema_id_returns_404() {
 }
 
 #[tokio::test]
-async fn get_subjects_excludes_soft_deleted_subject() {
+async fn get_subjects_by_schema_id_excludes_soft_deleted_subject() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("xref-sdel-{}", uuid::Uuid::new_v4());
@@ -53,7 +53,7 @@ async fn get_subjects_excludes_soft_deleted_subject() {
 }
 
 #[tokio::test]
-async fn get_subjects_excludes_soft_deleted_version() {
+async fn get_subjects_by_schema_id_excludes_soft_deleted_version() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("xref-vdel-{}", uuid::Uuid::new_v4());
@@ -71,7 +71,7 @@ async fn get_subjects_excludes_soft_deleted_version() {
 // -- GET /schemas/ids/{id}/versions --
 
 #[tokio::test]
-async fn get_versions_by_schema_id_returns_subject_version_pair() {
+async fn get_versions_by_schema_id_succeeds() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("xref-ver-{}", uuid::Uuid::new_v4());
@@ -88,7 +88,7 @@ async fn get_versions_by_schema_id_returns_subject_version_pair() {
 }
 
 #[tokio::test]
-async fn get_versions_by_schema_id_with_multiple_versions() {
+async fn get_versions_by_schema_id_multiple_succeeds() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("xref-multi-{}", uuid::Uuid::new_v4());
@@ -114,7 +114,7 @@ async fn get_versions_by_schema_id_with_multiple_versions() {
 }
 
 #[tokio::test]
-async fn get_versions_by_nonexistent_schema_id_returns_404() {
+async fn get_versions_by_schema_id_nonexistent_returns_404() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
 
@@ -126,7 +126,7 @@ async fn get_versions_by_nonexistent_schema_id_returns_404() {
 }
 
 #[tokio::test]
-async fn get_versions_excludes_soft_deleted() {
+async fn get_versions_by_schema_id_excludes_soft_deleted_version() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("xref-verdel-{}", uuid::Uuid::new_v4());
@@ -142,7 +142,7 @@ async fn get_versions_excludes_soft_deleted() {
 }
 
 #[tokio::test]
-async fn get_versions_schema_exists_but_all_deleted_returns_empty() {
+async fn get_versions_by_schema_id_excludes_soft_deleted_subject() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("xref-allempty-{}", uuid::Uuid::new_v4());
@@ -150,7 +150,6 @@ async fn get_versions_schema_exists_but_all_deleted_returns_empty() {
     let id = common::api::register_schema(&client, &base, &subject, common::AVRO_SCHEMA_V1).await;
     common::api::delete_subject(&client, &base, &subject).await;
 
-    // Schema ID still exists (IDs are permanent), but all usages soft-deleted → 200 + []
     let resp = common::api::get_versions_by_schema_id(&client, &base, id).await;
     assert_eq!(resp.status(), StatusCode::OK);
 
