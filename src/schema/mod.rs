@@ -1,6 +1,7 @@
 //! Schema format handling — parsing, canonical form, and fingerprinting.
 
 pub mod avro;
+pub mod json_schema;
 
 use crate::error::KoraError;
 
@@ -11,6 +12,8 @@ use crate::error::KoraError;
 pub enum SchemaFormat {
     /// Apache Avro schema format.
     Avro,
+    /// JSON Schema format.
+    Json,
 }
 
 /// Parsed and validated schema with computed metadata.
@@ -36,6 +39,7 @@ impl SchemaFormat {
     pub fn from_optional(schema_type: Option<&str>) -> Result<Self, KoraError> {
         match schema_type.map(str::to_ascii_uppercase).as_deref() {
             None | Some("AVRO") => Ok(Self::Avro),
+            Some("JSON") => Ok(Self::Json),
             Some(other) => Err(KoraError::InvalidSchema(format!(
                 "Unsupported schema type: {other}"
             ))),
@@ -47,6 +51,7 @@ impl SchemaFormat {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Avro => "AVRO",
+            Self::Json => "JSON",
         }
     }
 }
@@ -59,5 +64,6 @@ impl SchemaFormat {
 pub fn parse(format: SchemaFormat, raw: &str) -> Result<ParsedSchema, KoraError> {
     match format {
         SchemaFormat::Avro => avro::parse(raw),
+        SchemaFormat::Json => json_schema::parse(raw),
     }
 }

@@ -33,6 +33,16 @@ pub const AVRO_SCHEMA_V3: &str =
 pub const AVRO_SCHEMA_OTHER: &str =
     r#"{"type":"record","name":"Other","fields":[{"name":"x","type":"string"}]}"#;
 
+// -- JSON Schema Fixtures --
+
+/// A valid JSON Schema with one property.
+pub const JSON_SCHEMA_V1: &str =
+    r#"{"type":"object","properties":{"name":{"type":"string"}}}"#;
+
+/// A valid JSON Schema with two properties (different from V1).
+pub const JSON_SCHEMA_V2: &str =
+    r#"{"type":"object","properties":{"name":{"type":"string"},"age":{"type":"integer"}}}"#;
+
 // -- Setup --
 
 /// Get `DATABASE_URL` from env. Panics if not set — use `just test` to run.

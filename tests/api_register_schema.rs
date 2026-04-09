@@ -5,6 +5,8 @@ mod common;
 use reqwest::StatusCode;
 use sqlx::Row;
 
+// -- Avro Schema --
+
 #[tokio::test]
 async fn register_valid_avro_schema() {
     let base = common::spawn_server().await;
@@ -158,4 +160,95 @@ async fn register_with_lowercase_schema_type_succeeds() {
         .unwrap();
 
     assert_eq!(resp.status(), StatusCode::OK);
+}
+
+// -- JSON Schema --
+
+#[tokio::test]
+async fn register_valid_json_schema() {
+    let base = common::spawn_server().await;
+    let client = reqwest::Client::new();
+    let subject = format!("json-reg-{}", uuid::Uuid::new_v4());
+
+    let id = common::api::register_schema_with_type(
+        &client, &base, &subject, common::JSON_SCHEMA_V1, "JSON",
+    ).await;
+    assert!(id > 0);
+}
+
+#[tokio::test]
+async fn register_invalid_json_schema_returns_422() {
+    let base = common::spawn_server().await;
+    let client = reqwest::Client::new();
+
+    let resp = client
+        .post(format!("{base}/subjects/json-bad/versions"))
+        .json(&serde_json::json!({"schema": "not valid json", "schemaType": "JSON"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    let body: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(body["error_code"], 42201);
+}
+
+#[tokio::test]
+async fn retrieve_json_schema_includes_schema_type() {
+    let base = common::spawn_server().await;
+    let client = reqwest::Client::new();
+    let subject = format!("json-type-{}", uuid::Uuid::new_v4());
+
+    let id = common::api::register_schema_with_type(
+        &client, &base, &subject, common::JSON_SCHEMA_V1, "JSON",
+    ).await;
+
+    let resp = common::api::get_schema_by_id(&client, &base, id).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(body["schemaType"], "JSON");
+}
+
+#[tokio::test]
+async fn json_schema_idempotent_registration() {
+    let base = common::spawn_server().await;
+    let client = reqwest::Client::new();
+    let subject = format!("json-idem-{}", uuid::Uuid::new_v4());
+
+    let id1 = common::api::register_schema_with_type(
+        &client, &base, &subject, common::JSON_SCHEMA_V1, "JSON",
+    ).await;
+    let id2 = common::api::register_schema_with_type(
+        &client, &base, &subject, common::JSON_SCHEMA_V1, "JSON",
+    ).await;
+    assert_eq!(id1, id2);
+}
+
+#[tokio::test]
+async fn json_schema_listed_under_subject_versions() {
+    let base = common::spawn_server().await;
+    let client = reqwest::Client::new();
+    let subject = format!("json-ver-{}", uuid::Uuid::new_v4());
+
+    common::api::register_schema_with_type(
+        &client, &base, &subject, common::JSON_SCHEMA_V1, "JSON",
+    ).await;
+
+    let versions = common::api::list_versions(&client, &base, &subject, false).await;
+    assert_eq!(versions, vec![1]);
+}
+
+#[tokio::test]
+async fn register_json_schema_deduplicates_reordered_keys() {
+    let base = common::spawn_server().await;
+    let client = reqwest::Client::new();
+    let subject = format!("json-dedup-{}", uuid::Uuid::new_v4());
+
+    let schema_a = r#"{"type":"object","properties":{"name":{"type":"string"}}}"#;
+    let schema_b = r#"{"properties":{"name":{"type":"string"}},"type":"object"}"#;
+
+    let id1 = common::api::register_schema_with_type(&client, &base, &subject, schema_a, "JSON").await;
+    let id2 = common::api::register_schema_with_type(&client, &base, &subject, schema_b, "JSON").await;
+    assert_eq!(id1, id2, "reordered keys should produce same canonical form and deduplicate");
 }

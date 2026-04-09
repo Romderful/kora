@@ -17,6 +17,25 @@ pub async fn register_schema(client: &Client, base: &str, subject: &str, schema:
         .unwrap()
 }
 
+/// Register a schema with an explicit type under a subject and return its global ID.
+pub async fn register_schema_with_type(
+    client: &Client,
+    base: &str,
+    subject: &str,
+    schema: &str,
+    schema_type: &str,
+) -> i64 {
+    let resp = client
+        .post(format!("{base}/subjects/{subject}/versions"))
+        .json(&serde_json::json!({"schema": schema, "schemaType": schema_type}))
+        .send()
+        .await
+        .unwrap();
+    resp.json::<serde_json::Value>().await.unwrap()["id"]
+        .as_i64()
+        .unwrap()
+}
+
 /// Register a schema with references under a subject and return the raw response.
 pub async fn register_schema_with_refs(
     client: &Client,
