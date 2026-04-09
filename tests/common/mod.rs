@@ -43,6 +43,16 @@ pub const JSON_SCHEMA_V1: &str =
 pub const JSON_SCHEMA_V2: &str =
     r#"{"type":"object","properties":{"name":{"type":"string"},"age":{"type":"integer"}}}"#;
 
+// -- Protobuf Fixtures --
+
+/// A valid Protobuf schema with one field.
+pub const PROTO_SCHEMA_V1: &str =
+    "syntax = \"proto3\";\nmessage Test {\n  int32 id = 1;\n}";
+
+/// A valid Protobuf schema with two fields (different from V1).
+pub const PROTO_SCHEMA_V2: &str =
+    "syntax = \"proto3\";\nmessage Test {\n  int32 id = 1;\n  string name = 2;\n}";
+
 // -- Setup --
 
 /// Get `DATABASE_URL` from env. Panics if not set — use `just test` to run.

@@ -237,7 +237,7 @@ async fn register_json_schema_listed_under_versions() {
         &client, &base, &subject, common::JSON_SCHEMA_V1, "JSON",
     ).await;
 
-    let versions = common::api::list_versions(&client, &base, &subject, false).await;
+    let versions = common::api::list_versions(&client, &base, &subject, common::ACTIVE_ONLY).await;
     assert_eq!(versions, vec![1]);
 }
 
@@ -253,4 +253,81 @@ async fn register_json_schema_reordered_keys_deduplicates() {
     let id1 = common::api::register_schema_with_type(&client, &base, &subject, schema_a, "JSON").await;
     let id2 = common::api::register_schema_with_type(&client, &base, &subject, schema_b, "JSON").await;
     assert_eq!(id1, id2, "reordered keys should produce same canonical form and deduplicate");
+}
+
+// -- Protobuf schema --
+
+#[tokio::test]
+async fn register_protobuf_schema_valid_succeeds() {
+    let base = common::spawn_server().await;
+    let client = reqwest::Client::new();
+    let subject = format!("proto-reg-{}", uuid::Uuid::new_v4());
+
+    let id = common::api::register_schema_with_type(
+        &client, &base, &subject, common::PROTO_SCHEMA_V1, "PROTOBUF",
+    ).await;
+    assert!(id > 0);
+}
+
+#[tokio::test]
+async fn register_protobuf_schema_invalid_returns_422() {
+    let base = common::spawn_server().await;
+    let client = reqwest::Client::new();
+
+    let resp = client
+        .post(format!("{base}/subjects/proto-bad/versions"))
+        .json(&serde_json::json!({"schema": "not a proto file {{{", "schemaType": "PROTOBUF"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    let body: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(body["error_code"], 42201);
+}
+
+#[tokio::test]
+async fn register_protobuf_schema_retrieve_includes_type() {
+    let base = common::spawn_server().await;
+    let client = reqwest::Client::new();
+    let subject = format!("proto-type-{}", uuid::Uuid::new_v4());
+
+    let id = common::api::register_schema_with_type(
+        &client, &base, &subject, common::PROTO_SCHEMA_V1, "PROTOBUF",
+    ).await;
+
+    let resp = common::api::get_schema_by_id(&client, &base, id).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(body["schemaType"], "PROTOBUF");
+}
+
+#[tokio::test]
+async fn register_protobuf_schema_idempotent_returns_same_id() {
+    let base = common::spawn_server().await;
+    let client = reqwest::Client::new();
+    let subject = format!("proto-idem-{}", uuid::Uuid::new_v4());
+
+    let id1 = common::api::register_schema_with_type(
+        &client, &base, &subject, common::PROTO_SCHEMA_V1, "PROTOBUF",
+    ).await;
+    let id2 = common::api::register_schema_with_type(
+        &client, &base, &subject, common::PROTO_SCHEMA_V1, "PROTOBUF",
+    ).await;
+    assert_eq!(id1, id2);
+}
+
+#[tokio::test]
+async fn register_protobuf_schema_listed_under_versions() {
+    let base = common::spawn_server().await;
+    let client = reqwest::Client::new();
+    let subject = format!("proto-ver-{}", uuid::Uuid::new_v4());
+
+    common::api::register_schema_with_type(
+        &client, &base, &subject, common::PROTO_SCHEMA_V1, "PROTOBUF",
+    ).await;
+
+    let versions = common::api::list_versions(&client, &base, &subject, common::ACTIVE_ONLY).await;
+    assert_eq!(versions, vec![1]);
 }

@@ -25,6 +25,12 @@ fn format_json_accepted() {
 }
 
 #[test]
+fn format_protobuf_accepted() {
+    assert_eq!(SchemaFormat::from_optional(Some("PROTOBUF")).unwrap(), SchemaFormat::Protobuf);
+    assert_eq!(SchemaFormat::from_optional(Some("protobuf")).unwrap(), SchemaFormat::Protobuf);
+}
+
+#[test]
 fn format_unsupported_errors() {
     let err = SchemaFormat::from_optional(Some("XML")).unwrap_err();
     assert!(err.to_string().contains("Unsupported schema type"));
@@ -122,4 +128,43 @@ fn json_canonical_form_sorts_keys() {
     let b = schema::parse(SchemaFormat::Json, r#"{"type":"object","properties":{"name":{"type":"string"}}}"#).unwrap();
     assert_eq!(a.canonical_form, b.canonical_form);
     assert_eq!(a.fingerprint, b.fingerprint);
+}
+
+// --- Protobuf parsing ---
+
+#[test]
+fn protobuf_parse_valid() {
+    let result = schema::parse(SchemaFormat::Protobuf, common::PROTO_SCHEMA_V1);
+    assert!(result.is_ok());
+    let parsed = result.unwrap();
+    assert!(!parsed.canonical_form.is_empty());
+    assert!(!parsed.fingerprint.is_empty());
+}
+
+#[test]
+fn protobuf_parse_invalid() {
+    let result = schema::parse(SchemaFormat::Protobuf, "not a proto file {{{");
+    assert!(result.is_err());
+}
+
+#[test]
+fn protobuf_canonical_form_is_stable() {
+    let a = schema::parse(SchemaFormat::Protobuf, common::PROTO_SCHEMA_V1).unwrap();
+    let b = schema::parse(SchemaFormat::Protobuf, common::PROTO_SCHEMA_V1).unwrap();
+    assert_eq!(a.canonical_form, b.canonical_form);
+    assert!(!a.canonical_form.is_empty());
+}
+
+#[test]
+fn protobuf_fingerprint_is_stable() {
+    let a = schema::parse(SchemaFormat::Protobuf, common::PROTO_SCHEMA_V1).unwrap();
+    let b = schema::parse(SchemaFormat::Protobuf, common::PROTO_SCHEMA_V1).unwrap();
+    assert_eq!(a.fingerprint, b.fingerprint);
+}
+
+#[test]
+fn protobuf_different_schemas_have_different_fingerprints() {
+    let a = schema::parse(SchemaFormat::Protobuf, common::PROTO_SCHEMA_V1).unwrap();
+    let b = schema::parse(SchemaFormat::Protobuf, common::PROTO_SCHEMA_V2).unwrap();
+    assert_ne!(a.fingerprint, b.fingerprint);
 }

@@ -2,6 +2,7 @@
 
 pub mod avro;
 pub mod json_schema;
+pub mod protobuf;
 
 use crate::error::KoraError;
 
@@ -14,6 +15,8 @@ pub enum SchemaFormat {
     Avro,
     /// JSON Schema format.
     Json,
+    /// Protocol Buffers format.
+    Protobuf,
 }
 
 /// Parsed and validated schema with computed metadata.
@@ -21,7 +24,7 @@ pub enum SchemaFormat {
 pub struct ParsedSchema {
     /// The canonical form of the schema (for deduplication).
     pub canonical_form: String,
-    /// Hex-encoded Rabin fingerprint of the canonical form.
+    /// Hex-encoded fingerprint of the canonical form (Rabin for Avro, SHA-256 for JSON/Protobuf).
     pub fingerprint: String,
 }
 
@@ -40,6 +43,7 @@ impl SchemaFormat {
         match schema_type.map(str::to_ascii_uppercase).as_deref() {
             None | Some("AVRO") => Ok(Self::Avro),
             Some("JSON") => Ok(Self::Json),
+            Some("PROTOBUF") => Ok(Self::Protobuf),
             Some(other) => Err(KoraError::InvalidSchema(format!(
                 "Unsupported schema type: {other}"
             ))),
@@ -52,6 +56,7 @@ impl SchemaFormat {
         match self {
             Self::Avro => "AVRO",
             Self::Json => "JSON",
+            Self::Protobuf => "PROTOBUF",
         }
     }
 }
@@ -65,5 +70,6 @@ pub fn parse(format: SchemaFormat, raw: &str) -> Result<ParsedSchema, KoraError>
     match format {
         SchemaFormat::Avro => avro::parse(raw),
         SchemaFormat::Json => json_schema::parse(raw),
+        SchemaFormat::Protobuf => protobuf::parse(raw),
     }
 }
