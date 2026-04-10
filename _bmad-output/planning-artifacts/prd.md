@@ -25,15 +25,13 @@ Kora is a schema registry built in Rust with PostgreSQL storage, implementing th
 
 Existing schema registries store data in Kafka topics — creating a circular dependency where the registry depends on the very system it validates. They are built in languages (Java, Python) that introduce runtime overhead, garbage collection pauses, and operational complexity. Under production load with thousands of schemas and concurrent connections, latency degrades significantly.
 
-Kora eliminates these problems. A single compiled binary with sub-millisecond schema lookups, backed by a database every team already runs. It supports Avro, JSON Schema, and Protobuf, all seven compatibility modes, and adds schema comparison — the ability to programmatically diff two schema versions and understand exactly what changed.
+Kora eliminates these problems. A single compiled binary with sub-millisecond schema lookups, backed by a database every team already runs. It supports Avro, JSON Schema, and Protobuf, all seven compatibility modes, and 100% wire-compatibility with the Confluent Schema Registry REST API.
 
 ### What Makes This Special
 
 **Performance as a feature.** Kora is compiled native code. No JVM warmup, no Python interpreter, no garbage collection. Schema lookups in microseconds, registration throughput that scales linearly under concurrent load. The performance gap between Kora and existing registries is not incremental — it is an order of magnitude.
 
 **Schemas in a real database.** PostgreSQL storage means SQL-queryable schema catalogs, standard backup/restore with pg_dump, no circular Kafka dependency, and integration with tooling teams already operate. Schemas become first-class database citizens.
-
-**Schema comparison.** No existing registry offers a programmatic diff API. Kora does: field additions, removals, type changes, compatibility impact — all accessible via API. This enables schema-aware CI/CD gates and clear visibility into schema evolution.
 
 ## Project Classification
 
@@ -48,14 +46,12 @@ Kora eliminates these problems. A single compiled binary with sub-millisecond sc
 
 - A data engineer installs Kora (`docker run` or single binary), points their existing Kafka tooling at it, and everything works — zero configuration changes, zero code changes
 - Schema registration, lookup, and compatibility checking behave identically to the Confluent Schema Registry API — verified against the Confluent compatibility test suite
-- Schema comparison delivers typed, semantic diffs (not text diffs) that are immediately actionable: each change has a path, a type, and a breaking/compatible verdict
 - The operational experience is minimal: one binary, one PostgreSQL connection, standard `pg_dump` backups — no JVM tuning, no Kafka topic management, no Python environment
 
 ### Technical Success
 
 - Order-of-magnitude performance improvement over Python-based registries on both lookups and registration throughput (specific targets in Non-Functional Requirements)
 - All seven compatibility modes correctly enforced for Avro, JSON Schema, and Protobuf
-- Schema comparison API returns structured diffs with typed change classifications per format (Avro: `FIELD_ADDED`, `TYPE_WIDENED`, etc. — JSON Schema: `PROPERTY_ADDED`, `REQUIRED_REMOVED`, etc. — Protobuf: `FIELD_ADDED`, `FIELD_NUMBER_CHANGED`, etc.)
 - PostgreSQL storage with proper schema design — queryable catalog, standard backup/restore, no Kafka dependency
 
 ### Quality Bar
@@ -70,9 +66,6 @@ This project ships at an extreme quality bar. Every endpoint, every compatibilit
 - Avro, JSON Schema, and Protobuf format support
 - All compatibility modes (BACKWARD, FORWARD, FULL, NONE + TRANSITIVE variants)
 - PostgreSQL storage backend
-- Schema comparison API: pairwise diff between two versions (`GET /subjects/{subject}/versions/{v1}/diff/{v2}`) and arbitrary schema diff (`POST /schemas/diff`)
-- Chain diff: cumulative diff across version history (v1 → vN)
-- Structured semantic diff response: path, change type, from/to values, breaking verdict, summary
 - Prometheus metrics endpoint
 - Docker all-in-one image (embedded PostgreSQL, no external dependency required)
 - Single binary distribution
@@ -104,9 +97,7 @@ Marcus builds a streaming platform. He needs an embedded schema registry — not
 
 He integrates Kora into his Helm chart. For single-tenant deployments, he uses the all-in-one image. For multi-tenant, he points to his shared PG with a dedicated schema per tenant. His clients use standard Confluent serializers — they don't even know they're talking to Kora.
 
-He uses the schema comparison API to build a feature in his UI: display the diff between versions when a user updates a schema. `GET /subjects/orders-value/versions/2/diff/5` returns structured JSON with each change typed. He renders it in his frontend in 2 hours.
-
-**What this journey reveals:** deployment flexibility (all-in-one vs external PG), lightweight distribution, programmatically consumable comparison API, total client-side transparency.
+**What this journey reveals:** deployment flexibility (all-in-one vs external PG), lightweight distribution, total client-side transparency.
 
 ### Journey Requirements Summary
 
@@ -121,7 +112,6 @@ He uses the schema comparison API to build a feature in his UI: display the diff
 | Per-subject configuration | Nadia (dev vs prod) |
 | Clear error messages on rejection | Nadia (dev troubleshooting) |
 | Prometheus metrics endpoint | Nadia (monitoring) |
-| Schema comparison API | Marcus (UI integration) |
 | Single binary / Docker distribution | Ravi (install), Marcus (embed) |
 | Health check endpoints | Nadia (ops) |
 
@@ -152,19 +142,42 @@ Kora implements the complete Confluent Schema Registry REST API. All endpoints f
 - `GET /config/{subject}` — get per-subject compatibility config
 - `PUT /config/{subject}` — update per-subject compatibility config
 - `DELETE /config/{subject}` — delete per-subject config (fall back to global)
-- `GET /mode` — get registry mode (READWRITE, READONLY, IMPORT)
+- `GET /mode` — get registry mode (READWRITE, READONLY, READONLY_OVERRIDE, IMPORT)
 - `PUT /mode` — set registry mode
 
-**Kora Extension Endpoints:**
-- `GET /subjects/{subject}/versions/{v1}/diff/{v2}` — pairwise semantic diff between two versions
-- `POST /schemas/diff` — arbitrary schema diff (schemas provided in body)
-- `GET /subjects/{subject}/versions/{v1}/diff/{v2}/chain` — cumulative chain diff across version range
+**Additional Confluent Endpoints:**
+- `GET /schemas` — list all schemas (with optional filters: subjectPrefix, deleted, latestOnly)
+- `GET /schemas/ids/{id}/schema` — get raw schema text only by global ID
+- `GET /subjects/{subject}/versions/{version}/schema` — get raw schema text only by version
+- `GET /subjects/{subject}/versions/{version}/referencedby` — get IDs of schemas referencing this one
+- `POST /compatibility/subjects/{subject}/versions` — test compatibility against all versions
+- `DELETE /config` — delete global config (reset to default)
+- `GET /mode/{subject}` — get per-subject mode
+- `PUT /mode/{subject}` — set per-subject mode
+- `DELETE /mode` — delete global mode override
+- `DELETE /mode/{subject}` — delete per-subject mode override
 - `GET /metrics` — Prometheus metrics
 - `GET /health` — health check
 
 ### Authentication Model
 
 No authentication in MVP. Kora is designed for deployment behind private networks, VPNs, or service meshes — consistent with how schema registries are typically operated in production.
+
+### Out-of-Scope Confluent Endpoints
+
+The following endpoints and query parameters exist in the Confluent open-source codebase but are excluded from Kora V1. They support schema-linking, tagging, and commercial metadata features that no standard Kafka client calls:
+
+**Excluded endpoints:**
+- `GET /schemas/guids/{guid}` — GUID-based schema retrieval (schema-linking)
+- `GET /schemas/guids/{guid}/ids` — GUID to numeric ID mapping (schema-linking)
+- `GET /subjects/{subject}/metadata` — metadata key/value-based version lookup
+- `POST /subjects/{subject}/versions/{version}/tags` — schema tagging (tags/catalog feature)
+
+**Excluded query parameters (commercial features present in OSS code):**
+- `findTags` on `GET /schemas/ids/{id}` and `GET /subjects/{subject}/versions/{version}` — tag-based filtering
+- `aliases`, `ruleType`, `resourceType`, `associationType`, `lifecycle` on `GET /schemas` — data contracts, associations, lifecycle management
+
+No standard Confluent client (confluent-kafka-python, confluent-kafka-go, Debezium, Kafka Connect, ksqlDB) exercises these endpoints or parameters. They are safe to exclude without breaking wire-compatibility for any production workload.
 
 ### Data Formats
 
@@ -174,19 +187,30 @@ No authentication in MVP. Kora is designed for deployment behind private network
 
 ### Error Codes
 
-Confluent-compatible error codes:
+All 19 Confluent-compatible error codes:
 - `40401` — Subject not found
 - `40402` — Version not found
 - `40403` — Schema not found
+- `40404` — Subject was soft-deleted
+- `40405` — Subject not soft-deleted (hard-delete precondition)
+- `40406` — Schema version was soft-deleted
+- `40407` — Schema version not soft-deleted (hard-delete precondition)
+- `40408` — Subject compatibility level not configured
+- `40409` — Subject mode not configured
+- `40901` — Incompatible schema
 - `42201` — Invalid schema
 - `42202` — Invalid version
-- `409` — Incompatible schema (compatibility check failed)
+- `42203` — Invalid compatibility level
+- `42204` — Invalid mode
+- `42205` — Operation not permitted
+- `42206` — Reference exists (cannot delete)
 - `50001` — Backend store error
+- `50002` — Operation timed out
 - `50003` — Forwarding error
 
 ### API Documentation
 
-OpenAPI/Swagger specification generated from the Confluent Schema Registry API spec, extended with Kora-specific diff endpoints. Serves as both documentation and conformance reference.
+OpenAPI/Swagger specification generated from the Confluent Schema Registry API spec. Serves as both documentation and conformance reference.
 
 ## Functional Requirements
 
@@ -231,14 +255,14 @@ OpenAPI/Swagger specification generated from the Confluent Schema Registry API s
 - FR31: System enforces FORWARD_TRANSITIVE compatibility mode
 - FR32: System enforces FULL_TRANSITIVE compatibility mode
 
-### Schema Comparison
+### Additional Confluent API Coverage
 
-- FR33: API consumer can get a semantic diff between two versions of a subject
-- FR34: API consumer can submit two arbitrary schemas and get a semantic diff
-- FR35: API consumer can get a cumulative chain diff across a range of versions
-- FR36: System returns typed change classifications per format (field added, type changed, etc.)
-- FR37: System reports whether each change is breaking or compatible
-- FR38: System provides a summary with total changes, breaking count, and compatible count
+- FR33: API consumer can list all schemas with optional filters (subjectPrefix, deleted, latestOnly)
+- FR34: API consumer can get raw schema text by global ID (`GET /schemas/ids/{id}/schema`)
+- FR35: API consumer can get raw schema text by subject version (`GET /subjects/{subject}/versions/{version}/schema`)
+- FR36: API consumer can get the list of schema IDs that reference a given schema version (`referencedby`)
+- FR37: API consumer can test compatibility against all versions of a subject
+- FR38: Compatibility test endpoint supports `verbose=true` to return detailed incompatibility messages
 
 ### Storage
 
@@ -249,7 +273,7 @@ OpenAPI/Swagger specification generated from the Confluent Schema Registry API s
 
 ### Registry Mode
 
-- FR43: Operator can get the current registry mode (READWRITE, READONLY, IMPORT)
+- FR43: Operator can get the current registry mode (READWRITE, READONLY, READONLY_OVERRIDE, IMPORT)
 - FR44: Operator can set the registry mode
 
 ### Observability
@@ -269,7 +293,6 @@ OpenAPI/Swagger specification generated from the Confluent Schema Registry API s
 
 - Schema lookups (GET by ID, by subject/version): P99 latency < 1ms under sustained load
 - Schema registration: P99 latency < 10ms (includes parsing, validation, compatibility check, PG write)
-- Schema diff (pairwise): P99 latency < 50ms for schemas up to 500 fields
 - Concurrent connections: support 1,000+ simultaneous connections without degradation
 - Startup time: cold start to serving requests < 3 seconds (excluding embedded PG boot)
 

@@ -24,8 +24,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 |---|---|---|---|
 | Schema Management | 8 | Medium | CRUD + versioning + ID allocation |
 | Schema Formats | 5 | High | Avro, JSON Schema, Protobuf — each with own parser |
-| Compatibility | 8 | High | 7 modes × 3 formats, chain diff in MVP |
-| Schema Comparison | 6 | High | Semantic diff engine, typed changes, breaking/compatible verdicts |
+| Compatibility | 8 | High | 7 modes × 3 formats, verbose incompatibility messages |
 | Storage & Persistence | 5 | Medium | PostgreSQL, dual-mode (embedded Docker / external) |
 | Registry Configuration | 4 | Low | Global + subject-level mode/compatibility |
 | Observability | 5 | Medium | Prometheus metrics, structured logging |
@@ -61,7 +60,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 ### Cross-Cutting Concerns
 
 **1. Schema Format Abstraction**
-Three distinct parsers (Avro, JSON Schema, Protobuf) must present a unified interface for: parsing/validation, canonical form normalization, compatibility checking, and semantic comparison. This is the highest-complexity architectural concern — each format has its own rules for compatibility and comparison.
+Three distinct parsers (Avro, JSON Schema, Protobuf) must present a unified interface for: parsing/validation, canonical form normalization, and compatibility checking. This is the highest-complexity architectural concern — each format has its own rules for compatibility.
 
 **2. Confluent API Error Contract**
 Every endpoint must return errors in the exact Confluent format. This means a centralized error mapping layer that translates internal errors to Confluent error codes (40401, 40402, 40403, 42201, 42202, 40901, 50001, etc.).
@@ -164,7 +163,7 @@ cargo add uuid --features "v4,serde"
 
 ### Schema Format Abstraction
 
-**Trait Design:** Single `SchemaHandler` trait with methods: `parse`, `canonical_form`, `check_compatibility`, `compare`, `validate_references`. Each format (Avro, JSON Schema, Protobuf) implements this one trait.
+**Trait Design:** Single `SchemaHandler` trait with methods: `parse`, `canonical_form`, `check_compatibility`, `validate_references`. Each format (Avro, JSON Schema, Protobuf) implements this one trait.
 
 **Format Dispatch:** Enum dispatch over three known variants. No dynamic dispatch, no runtime plugins. The compiler checks exhaustiveness.
 
@@ -186,10 +185,9 @@ cargo add uuid --features "v4,serde"
 3. Avro format handler (parse, canonical, compatibility)
 4. Core API endpoints (subjects, schemas)
 5. JSON Schema + Protobuf handlers
-6. Schema comparison API
-7. Cache layer
-8. Observability (metrics + structured logging)
-9. Docker all-in-one packaging
+6. Cache layer
+7. Observability (metrics + structured logging)
+8. Docker all-in-one packaging
 
 **Deferred Decisions (Post-MVP):**
 - Authentication/authorization
@@ -209,7 +207,7 @@ cargo add uuid --features "v4,serde"
 
 **API:**
 - Confluent paths exactly as spec'd: `/subjects`, `/schemas/ids/{id}`, `/compatibility/subjects/{subject}/versions/{version}`
-- Kora extensions: `/kora/v1/schemas/compare` (prefixed to distinguish from Confluent)
+- All endpoints match Confluent Schema Registry API paths exactly (no custom extensions)
 - Query params: `snake_case` — matching Confluent where applicable (`deleted=true`)
 
 **Rust Code:**
@@ -328,7 +326,7 @@ kora/
 │   │   ├── config_endpoints.rs     — GET/PUT /config, /config/{subject}
 │   │   ├── mode.rs                 — GET/PUT /mode, /mode/{subject}
 │   │   ├── health.rs               — GET /health (PG check)
-│   │   └── kora.rs                 — POST /kora/v1/schemas/compare (extension)
+│   │   └── schemas_list.rs         — GET /schemas (list all schemas with filters)
 │   ├── storage/
 │   │   ├── mod.rs                  — PgPool setup, connection helper
 │   │   ├── schemas.rs              — insert/get/delete/list schemas, ID allocation
@@ -338,16 +336,15 @@ kora/
 │   └── schema/
 │       ├── mod.rs                  — SchemaFormat enum, dispatch to handlers
 │       ├── handler.rs              — SchemaHandler trait definition
-│       ├── avro.rs                 — Avro: parse, canonical_form, compatibility, compare
-│       ├── json_schema.rs          — JSON Schema: parse, canonical_form, compatibility, compare
-│       └── protobuf.rs             — Protobuf: parse, canonical_form, compatibility, compare
+│       ├── avro.rs                 — Avro: parse, canonical_form, compatibility
+│       ├── json_schema.rs          — JSON Schema: parse, canonical_form, compatibility
+│       └── protobuf.rs             — Protobuf: parse, canonical_form, compatibility
 ├── tests/
 │   ├── common/
 │   │   └── mod.rs                  — test DB setup, test server helper, fixtures
 │   ├── api_subjects.rs             — subject endpoint integration tests
 │   ├── api_schemas.rs              — schema CRUD integration tests
 │   ├── api_compatibility.rs        — compatibility check integration tests
-│   ├── api_compare.rs              — Kora comparison API integration tests
 │   └── confluent_wire_compat.rs    — wire-compatibility tests against Confluent spec
 ```
 
@@ -358,7 +355,6 @@ kora/
 | Schema Management | `api/subjects.rs`, `api/schemas.rs`, `storage/schemas.rs`, `storage/subjects.rs` | FR-SM-01 through FR-SM-08 |
 | Schema Formats | `schema/avro.rs`, `schema/json_schema.rs`, `schema/protobuf.rs` | FR-SF-01/02/03 |
 | Compatibility | `api/compatibility.rs`, `schema/handler.rs` | FR-CP-01 through FR-CP-08 |
-| Schema Comparison | `api/kora.rs`, `schema/handler.rs` | FR-SC-01 through FR-SC-06 |
 | Storage | `storage/mod.rs`, `storage/schemas.rs`, `migrations/` | FR-ST-01 through FR-ST-05 |
 | Registry Config | `api/config_endpoints.rs`, `api/mode.rs`, `storage/config.rs` | FR-RC-01 through FR-RC-04 |
 | Observability | `metrics.rs`, `main.rs` | FR-OB-01 through FR-OB-05 |
@@ -404,7 +400,7 @@ Naming conventions are coherent across all layers: snake_case DB, PascalCase Rus
 | Schema Management (14 FRs) | Register, retrieve, list, soft/hard delete, list types, subjects/versions by ID | `api/subjects.rs`, `api/schemas.rs`, `storage/schemas.rs`, `storage/subjects.rs` | ✅ |
 | Schema Formats (5 FRs) | Avro, JSON Schema, Protobuf parsing + reference resolution | `schema/avro.rs`, `schema/json_schema.rs`, `schema/protobuf.rs`, `storage/references.rs` | ✅ |
 | Compatibility (13 FRs) | 7 modes, config CRUD, compatibility testing | `api/compatibility.rs`, `api/config_endpoints.rs`, `schema/handler.rs`, `storage/config.rs` | ✅ |
-| Schema Comparison (6 FRs) | Pairwise diff, chain diff, typed changes, breaking verdicts | `api/kora.rs`, `schema/handler.rs` | ✅ |
+| Additional API Coverage (6 FRs) | List all schemas, raw schema text, referencedby, verbose compat, compat against all versions | `api/schemas.rs`, `api/subjects.rs`, `api/compatibility.rs` | ✅ |
 | Storage (4 FRs) | PG storage, auto-migrations, embedded/external PG | `storage/mod.rs`, `migrations/`, `config.rs`, `Dockerfile` | ✅ |
 | Registry Mode (2 FRs) | Get/set mode | `api/mode.rs`, `storage/config.rs` | ✅ |
 | Observability (2 FRs) | Prometheus metrics, health check | `metrics.rs`, `api/health.rs` | ✅ |
@@ -428,7 +424,7 @@ Naming conventions are coherent across all layers: snake_case DB, PascalCase Rus
 ### Implementation Readiness Validation ✅
 
 **Decision Completeness:**
-All crates specified with exact versions. `cargo add` commands ready to copy-paste. Implementation sequence ordered in 9 logical steps. Code Philosophy in 6 clear, enforceable rules.
+All crates specified with exact versions. `cargo add` commands ready to copy-paste. Implementation sequence ordered in 8 logical steps. Code Philosophy in 6 clear, enforceable rules.
 
 **Structure Completeness:**
 Every file listed with its purpose. Data flow boundaries documented (write path / read path). FR-to-file mapping complete for all 9 categories.
@@ -443,7 +439,7 @@ Naming covers DB, API, Rust code — no blind spots. Error flow documented step 
 **Minor Documentation Gaps (non-blocking):**
 
 1. Schema deletion protection (cross-cutting concern #5) — dependency graph query will be a simple SQL `EXISTS` check at implementation time. No additional architectural decision needed.
-2. `SchemaHandler` trait signature not detailed — intentionally deferred to implementation stories. The trait is straightforward: `parse`, `canonical_form`, `check_compatibility`, `compare`, `validate_references`.
+2. `SchemaHandler` trait signature not detailed — intentionally deferred to implementation stories. The trait is straightforward: `parse`, `canonical_form`, `check_compatibility`, `validate_references`.
 
 ### Architecture Completeness Checklist
 

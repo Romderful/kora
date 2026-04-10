@@ -1,0 +1,84 @@
+# generated: 2026-04-10
+# last_updated: 2026-04-10
+# project: kora
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: _bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# EXECUTION ORDER:
+# ================
+# Linear — just follow the numbers:
+#   4.2 → 4.3 → 4.4/4.5 (parallel) → 5.1 → 5.2 → 6.1/6.2/6.3 (parallel)
+
+generated: 2026-04-10
+last_updated: 2026-04-10
+project: kora
+project_key: NOKEY
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+
+development_status:
+  # ── Epic 1: Core Schema Registry ── DONE
+  epic-1: done
+  1-1-project-scaffold-database-health: done
+  1-2-register-avro-schema: done
+  1-3-retrieve-schema-by-global-id: done
+  1-4-retrieve-schema-by-subject-version: done
+  1-5-list-subjects-and-versions: done
+  1-6-check-schema-registration: done
+  1-7-list-supported-schema-types: done
+  epic-1-retrospective: optional
+
+  # ── Epic 2: Schema Lifecycle Management ── DONE
+  epic-2: done
+  2-1-soft-delete-subject-and-versions: done
+  2-2-hard-delete-subject-and-versions: done
+  2-3-schema-id-cross-references: done
+  2-4-schema-references-and-dependency-protection: done
+  epic-2-retrospective: optional
+
+  # ── Epic 3: Multi-Format Support ── DONE
+  epic-3: done
+  3-1-json-schema-format-handler: done
+  3-2-protobuf-format-handler: done
+  epic-3-retrospective: optional
+
+  # ── Epic 4: Confluent API Parity ──
+  epic-4: in-progress
+  4-1-compatibility-configuration-crud: done
+  4-2-confluent-api-parity-infrastructure: ready-for-dev    # ← START HERE
+  4-3-confluent-api-parity-list-params: ready-for-dev
+  4-4-list-all-schemas-and-raw-schema-text: backlog
+  4-5-referenced-by-lookup: backlog
+  epic-4-retrospective: optional
+
+  # ── Epic 5: Compatibility Enforcement ──
+  epic-5: backlog
+  5-1-compatibility-test-endpoint: backlog
+  5-2-enforce-all-compatibility-modes: backlog
+  epic-5-retrospective: optional
+
+  # ── Epic 6: Operations & Packaging ──
+  epic-6: backlog
+  6-1-registry-mode-control: backlog
+  6-2-prometheus-metrics: backlog
+  6-3-docker-all-in-one-packaging: backlog
+  epic-6-retrospective: optional

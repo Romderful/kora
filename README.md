@@ -20,7 +20,7 @@ It implements the full Confluent Schema Registry REST API, so existing Kafka ser
 
 - **PostgreSQL storage** — schemas are regular database rows. Back up with `pg_dump`, query with SQL, integrate with your existing database tooling. No Kafka dependency.
 - **Native performance** — compiled Rust, no garbage collector, no interpreter. Schema lookups in microseconds.
-- **Schema comparison** — a diff API that tells you exactly what changed between two schema versions, with typed change classifications and breaking-change verdicts. No other registry offers this.
+- **100% Confluent wire-compatible** — every endpoint, query parameter, and error code matches the Confluent Schema Registry API. Drop-in replacement for all standard clients.
 
 ## Supported formats
 

@@ -45,17 +45,17 @@ FR29: System enforces NONE compatibility mode
 FR30: System enforces BACKWARD_TRANSITIVE compatibility mode
 FR31: System enforces FORWARD_TRANSITIVE compatibility mode
 FR32: System enforces FULL_TRANSITIVE compatibility mode
-FR33: API consumer can get a semantic diff between two versions of a subject
-FR34: API consumer can submit two arbitrary schemas and get a semantic diff
-FR35: API consumer can get a cumulative chain diff across a range of versions
-FR36: System returns typed change classifications per format (field added, type changed, etc.)
-FR37: System reports whether each change is breaking or compatible
-FR38: System provides a summary with total changes, breaking count, and compatible count
+FR33: API consumer can list all schemas with optional filters (subjectPrefix, deleted, latestOnly)
+FR34: API consumer can get raw schema text by global ID (GET /schemas/ids/{id}/schema)
+FR35: API consumer can get raw schema text by subject version (GET /subjects/{subject}/versions/{version}/schema)
+FR36: API consumer can get the list of schema IDs that reference a given schema version (referencedby)
+FR37: API consumer can test compatibility against all versions of a subject
+FR38: Compatibility test endpoint supports verbose=true to return detailed incompatibility messages
 FR39: System stores all schemas and metadata in PostgreSQL
 FR40: System runs database migrations automatically on startup
 FR41: System connects to an external PostgreSQL when DATABASE_URL is provided
 FR42: Docker image starts an embedded PostgreSQL when no DATABASE_URL is provided
-FR43: Operator can get the current registry mode (READWRITE, READONLY, IMPORT)
+FR43: Operator can get the current registry mode (READWRITE, READONLY, READONLY_OVERRIDE, IMPORT)
 FR44: Operator can set the registry mode
 FR45: Operator can access Prometheus metrics via `/metrics`
 FR46: Operator can check service health via `/health`
@@ -67,20 +67,19 @@ FR49: System assigns globally unique sequential IDs to registered schemas
 
 NFR1: Schema lookups (GET by ID, by subject/version): P99 latency < 1ms under sustained load
 NFR2: Schema registration: P99 latency < 10ms (includes parsing, validation, compatibility check, PG write)
-NFR3: Schema diff (pairwise): P99 latency < 50ms for schemas up to 500 fields
-NFR4: Concurrent connections: support 1,000+ simultaneous connections without degradation
-NFR5: Startup time: cold start to serving requests < 3 seconds (excluding embedded PG boot)
-NFR6: Data durability: all registered schemas persisted in PostgreSQL with ACID guarantees
-NFR7: Crash recovery: restart and resume serving from PG state with zero data loss
-NFR8: Graceful shutdown: complete in-flight requests before terminating
-NFR9: No single point of data loss: PG backup/restore is the recovery path
-NFR10: Support 100,000+ schema versions across 10,000+ subjects without performance degradation
-NFR11: Memory footprint: < 100MB RSS for the Kora process under typical load (excluding PG)
-NFR12: Linear throughput scaling with connection count up to system resource limits
-NFR13: 100% wire-compatible with Confluent Schema Registry API
-NFR14: Compatible with: confluent-kafka-python, confluent-kafka-go, io.confluent serde (Java), Debezium, Kafka Connect, ksqlDB
-NFR15: Content-type negotiation: `application/vnd.schemaregistry.v1+json` and `application/json`
-NFR16: Confluent error code compatibility for all error responses
+NFR3: Concurrent connections: support 1,000+ simultaneous connections without degradation
+NFR4: Startup time: cold start to serving requests < 3 seconds (excluding embedded PG boot)
+NFR5: Data durability: all registered schemas persisted in PostgreSQL with ACID guarantees
+NFR6: Crash recovery: restart and resume serving from PG state with zero data loss
+NFR7: Graceful shutdown: complete in-flight requests before terminating
+NFR8: No single point of data loss: PG backup/restore is the recovery path
+NFR9: Support 100,000+ schema versions across 10,000+ subjects without performance degradation
+NFR10: Memory footprint: < 100MB RSS for the Kora process under typical load (excluding PG)
+NFR11: Linear throughput scaling with connection count up to system resource limits
+NFR12: 100% wire-compatible with Confluent Schema Registry API
+NFR13: Compatible with: confluent-kafka-python, confluent-kafka-go, io.confluent serde (Java), Debezium, Kafka Connect, ksqlDB
+NFR14: Content-type negotiation: `application/vnd.schemaregistry.v1+json` and `application/json`
+NFR15: Confluent error code compatibility for all error responses
 
 ### Additional Requirements
 
@@ -120,25 +119,25 @@ FR16: Epic 3 - Parse, validate, and store JSON Schema schemas
 FR17: Epic 3 - Parse, validate, and store Protobuf schemas
 FR18: Epic 2 - Resolve and store schema references
 FR19: Epic 2 - Validate referenced schemas exist before registration
-FR20: Epic 4 - Test compatibility against a specific version
+FR20: Epic 5 - Test compatibility against a specific version
 FR21: Epic 4 - Get global compatibility configuration
 FR22: Epic 4 - Update global compatibility configuration
 FR23: Epic 4 - Get per-subject compatibility configuration
 FR24: Epic 4 - Update per-subject compatibility configuration
 FR25: Epic 4 - Delete per-subject configuration (fallback to global)
-FR26: Epic 4 - Enforce BACKWARD compatibility mode
-FR27: Epic 4 - Enforce FORWARD compatibility mode
-FR28: Epic 4 - Enforce FULL compatibility mode
-FR29: Epic 4 - Enforce NONE compatibility mode
-FR30: Epic 4 - Enforce BACKWARD_TRANSITIVE compatibility mode
-FR31: Epic 4 - Enforce FORWARD_TRANSITIVE compatibility mode
-FR32: Epic 4 - Enforce FULL_TRANSITIVE compatibility mode
-FR33: Epic 5 - Semantic diff between two versions of a subject
-FR34: Epic 5 - Semantic diff between two arbitrary schemas
-FR35: Epic 5 - Cumulative chain diff across version range
-FR36: Epic 5 - Typed change classifications per format
-FR37: Epic 5 - Breaking/compatible verdict per change
-FR38: Epic 5 - Summary with total, breaking, compatible counts
+FR26: Epic 5 - Enforce BACKWARD compatibility mode
+FR27: Epic 5 - Enforce FORWARD compatibility mode
+FR28: Epic 5 - Enforce FULL compatibility mode
+FR29: Epic 5 - Enforce NONE compatibility mode
+FR30: Epic 5 - Enforce BACKWARD_TRANSITIVE compatibility mode
+FR31: Epic 5 - Enforce FORWARD_TRANSITIVE compatibility mode
+FR32: Epic 5 - Enforce FULL_TRANSITIVE compatibility mode
+FR33: Epic 4 - List all schemas with filters
+FR34: Epic 4 - Get raw schema text by global ID
+FR35: Epic 4 - Get raw schema text by subject version
+FR36: Epic 4 - Get schema IDs that reference a given version (referencedby)
+FR37: Epic 5 - Test compatibility against all versions of a subject
+FR38: Epic 5 - Compatibility verbose mode (detailed incompatibility messages)
 FR39: Epic 1 - Store all schemas and metadata in PostgreSQL
 FR40: Epic 1 - Run database migrations automatically on startup
 FR41: Epic 1 - Connect to external PostgreSQL via DATABASE_URL
@@ -147,35 +146,41 @@ FR43: Epic 6 - Get current registry mode
 FR44: Epic 6 - Set registry mode
 FR45: Epic 6 - Prometheus metrics via /metrics
 FR46: Epic 1 - Health check via /health
-FR47: Epic 1 - Confluent-compatible error codes and format
+FR47: Epic 4 - Confluent-compatible error codes and format
 FR48: Epic 1 - Accept/return application/vnd.schemaregistry.v1+json
 FR49: Epic 1 - Globally unique sequential schema IDs
 
 ## Epic List
 
-### Epic 1: Core Schema Registry
+### Epic 1: Core Schema Registry ✅ DONE
 A developer can register Avro schemas, retrieve them by ID/subject/version, list subjects, and get a fully Confluent-compatible API experience.
 Includes project scaffold, PostgreSQL storage, migrations, health check, error format, content-type negotiation, sequential ID allocation, and Avro handler.
-**FRs covered:** FR1, FR2, FR3, FR4, FR5, FR6, FR7, FR12, FR15, FR39, FR40, FR41, FR46, FR47, FR48, FR49
+**Stories:** 1.1–1.7 (all done)
+**FRs covered:** FR1, FR2, FR3, FR4, FR5, FR6, FR7, FR12, FR15, FR39, FR40, FR41, FR46, FR48, FR49
 
-### Epic 2: Schema Lifecycle Management
+### Epic 2: Schema Lifecycle Management ✅ DONE
 A developer can manage the complete schema lifecycle: soft/hard delete subjects and versions, track which subjects/versions use a schema ID, and handle schema references with dependency protection.
+**Stories:** 2.1–2.4 (all done)
 **FRs covered:** FR8, FR9, FR10, FR11, FR13, FR14, FR18, FR19
 
-### Epic 3: Multi-Format Support
+### Epic 3: Multi-Format Support ✅ DONE
 A developer can register JSON Schema and Protobuf schemas using the same workflow as Avro, with format-specific parsing, validation, and canonical form.
+**Stories:** 3.1–3.2 (all done)
 **FRs covered:** FR16, FR17
 
-### Epic 4: Compatibility Checking
-A developer can test schema compatibility and configure all 7 compatibility modes (BACKWARD, FORWARD, FULL, NONE + transitive variants) at global and per-subject levels.
-**FRs covered:** FR20, FR21, FR22, FR23, FR24, FR25, FR26, FR27, FR28, FR29, FR30, FR31, FR32
+### Epic 4: Confluent API Parity
+A developer gets 100% wire-compatibility with the Confluent Schema Registry: all error codes, query parameters, missing endpoints, and config behavior across all existing and new handlers.
+**Stories:** 4.1 (done) → 4.2 → 4.3 → 4.4 → 4.5
+**FRs covered:** FR21, FR22, FR23, FR24, FR25, FR33, FR34, FR35, FR36, FR47
 
-### Epic 5: Schema Comparison
-A developer can obtain semantic diffs between schemas with typed change classifications, breaking/compatible verdicts, and cumulative chain diffs across version ranges. Kora extension API.
-**FRs covered:** FR33, FR34, FR35, FR36, FR37, FR38
+### Epic 5: Compatibility Enforcement
+A developer can test schema compatibility and the registry enforces all 7 compatibility modes on registration.
+**Stories:** 5.1 → 5.2
+**FRs covered:** FR20, FR26, FR27, FR28, FR29, FR30, FR31, FR32, FR37, FR38
 
 ### Epic 6: Operations & Packaging
 An operator can control registry mode, access Prometheus metrics, and deploy via Docker all-in-one with embedded PostgreSQL and s6-overlay process supervision.
+**Stories:** 6.1, 6.2, 6.3 (parallelizable)
 **FRs covered:** FR42, FR43, FR44, FR45
 
 ## Epic 1: Core Schema Registry
@@ -210,7 +215,13 @@ So that I have the foundation to build all schema registry features on.
 **Then** it follows Confluent format: `{"error_code": <int>, "message": "<string>"}`
 **And** `Content-Type` is `application/vnd.schemaregistry.v1+json`
 
-**FRs:** FR39, FR40, FR41, FR46, FR47, FR48
+**Given** any request
+**When** the request includes `Accept: application/vnd.schemaregistry.v1+json` or `application/json`
+**Then** both content types are accepted (content-type negotiation)
+
+**Note:** Confluent query parameter parity (pagination, normalize, deleted filters, subjectPrefix, etc.) deferred to Epic 4 stories 4.2/4.3. The `GET /` root endpoint and full set of 19 Confluent error codes are also deferred to story 4.2.
+
+**FRs:** FR39, FR40, FR41, FR46, FR48
 
 ### Story 1.2: Register Avro Schema
 
@@ -237,6 +248,8 @@ So that my producers and consumers can serialize/deserialize data using a shared
 **When** I send `POST /subjects/{subject}/versions`
 **Then** the system defaults to Avro (Confluent default behavior)
 
+**Note:** Confluent query parameter parity (pagination, normalize, deleted filters, subjectPrefix, etc.) deferred to Epic 4 stories 4.2/4.3.
+
 **FRs:** FR1, FR15, FR49
 
 ### Story 1.3: Retrieve Schema by Global ID
@@ -249,11 +262,17 @@ So that my deserializers can resolve schemas from the ID embedded in Kafka messa
 
 **Given** a registered schema with ID 1
 **When** I send `GET /schemas/ids/1`
-**Then** I receive HTTP 200 with `{"schema": "<schema_json>"}`
+**Then** I receive HTTP 200 with `{"schema": "<schema_json>", "schemaType": "AVRO", "references": [...]}`
+
+**Given** a schema whose subject/version has been soft-deleted
+**When** I send `GET /schemas/ids/1`
+**Then** the schema is still returned (schemas are immutable by global ID — always retrievable regardless of subject soft-delete status)
 
 **Given** a non-existent schema ID
 **When** I send `GET /schemas/ids/999`
 **Then** I receive HTTP 404 with Confluent error code 40403
+
+**Note:** Confluent query parameter parity (pagination, normalize, deleted filters, subjectPrefix, etc.) deferred to Epic 4 stories 4.2/4.3. The `fetchMaxId`, `subject` query params and `schemaType` omission for AVRO are deferred to story 4.2.
 
 **FRs:** FR2
 
@@ -281,6 +300,8 @@ So that I can inspect specific versions or always get the most recent schema.
 **When** I send `GET /subjects/orders-value/versions/99`
 **Then** I receive HTTP 404 with Confluent error code 40402
 
+**Note:** Confluent query parameter parity (pagination, normalize, deleted filters, subjectPrefix, etc.) deferred to Epic 4 stories 4.2/4.3. The `deleted=true` param on get-by-version and negative version indexing / 42202 error are deferred to stories 4.2/4.3.
+
 **FRs:** FR3, FR4
 
 ### Story 1.5: List Subjects and Versions
@@ -303,6 +324,12 @@ So that I can discover available schemas in the registry.
 **When** I send `GET /subjects/orders-value/versions`
 **Then** I receive HTTP 200 with `[1, 2, 3]`
 
+**Given** subject with soft-deleted versions
+**When** I send `GET /subjects/orders-value/versions?deleted=true`
+**Then** soft-deleted versions are included
+
+**Note:** Confluent query parameter parity (pagination, normalize, deleted filters, subjectPrefix, etc.) deferred to Epic 4 stories 4.2/4.3. The `subjectPrefix`, `deletedOnly`, `deletedAsNegative`, and pagination (`offset`/`limit`) params are deferred to stories 4.2/4.3.
+
 **FRs:** FR6, FR7
 
 ### Story 1.6: Check Schema Registration
@@ -320,6 +347,8 @@ So that I can verify whether my schema exists without registering a new version.
 **Given** a schema not registered under the subject
 **When** I send `POST /subjects/orders-value` with `{"schema": "<unknown_schema>"}`
 **Then** I receive HTTP 404 with Confluent error code 40403
+
+**Note:** Confluent query parameter parity (pagination, normalize, deleted filters, subjectPrefix, etc.) deferred to Epic 4 stories 4.2/4.3. The `normalize=true` and `deleted=true` params on schema check are deferred to story 4.3.
 
 **FRs:** FR5
 
@@ -385,7 +414,9 @@ So that I can completely remove schemas that should not exist.
 
 **Given** a subject that is NOT soft-deleted
 **When** I send `DELETE /subjects/orders-value?permanent=true`
-**Then** I receive HTTP 404 with Confluent error code 40401
+**Then** I receive HTTP 404 with Confluent error code 40401 (subject not found in soft-deleted state)
+
+**Note:** Confluent query parameter parity (pagination, normalize, deleted filters, subjectPrefix, etc.) deferred to Epic 4 stories 4.2/4.3. The Confluent-specific 40405 error code (subject NOT soft-deleted) is deferred to story 4.2.
 
 **FRs:** FR10, FR11
 
@@ -408,6 +439,8 @@ So that I can understand the impact of a schema across the registry.
 **Given** a non-existent schema ID
 **When** I send `GET /schemas/ids/999/subjects`
 **Then** I receive HTTP 404 with Confluent error code 40403
+
+**Note:** Confluent query parameter parity (pagination, normalize, deleted filters, subjectPrefix, etc.) deferred to Epic 4 stories 4.2/4.3. The `deleted=true` and pagination (`offset`/`limit`) params on cross-reference endpoints are deferred to stories 4.2/4.3.
 
 **FRs:** FR13, FR14
 
@@ -484,11 +517,11 @@ So that I can use Protobuf for high-performance serialization in my pipeline.
 
 **FRs:** FR17
 
-## Epic 4: Compatibility Checking
+## Epic 4: Confluent API Parity
 
-A developer can test schema compatibility and configure compatibility modes.
+A developer gets 100% wire-compatibility with the Confluent Schema Registry: all error codes, query parameters, missing endpoints, and config behavior.
 
-### Story 4.1: Compatibility Configuration CRUD
+### Story 4.1: Compatibility Configuration CRUD ✅ DONE
 
 As a **developer**,
 I want to get and set compatibility configuration at global and per-subject levels,
@@ -514,11 +547,154 @@ So that I can control how schema evolution is enforced.
 
 **Given** subject "orders-value" has per-subject config
 **When** I send `DELETE /config/orders-value`
-**Then** I receive HTTP 200 with `{"compatibility": "BACKWARD"}` (falls back to global)
+**Then** I receive HTTP 200 with the compatibility level (current implementation returns global fallback)
 
 **FRs:** FR21, FR22, FR23, FR24, FR25
 
-### Story 4.2: Compatibility Test Endpoint
+**Note:** Confluent query parameter parity deferred to Epic 4 stories 4.2/4.3. Specifically: `defaultToGlobal` query param, `DELETE /config` (global reset), error code 40408, and `DELETE /config/{subject}` returning the *previous* level instead of the fallback — all deferred to story 4.2.
+
+### Story 4.2: Confluent API Parity — Infrastructure & Core Params
+
+As a **developer using Confluent-compatible tooling**,
+I want Kora's core infrastructure (error codes, pagination, root endpoint, config behavior) to match the Confluent Schema Registry,
+so that client libraries work without modification.
+
+**Acceptance Criteria:**
+
+**Given** a running Kora server
+**When** I send `GET /` or `POST /`
+**Then** I receive HTTP 200 with `{}` (empty JSON object)
+
+**Given** any API error
+**Then** all 19 Confluent error codes are supported (40401–40409, 40901, 42201–42206, 50001–50003)
+
+**Given** `DELETE /subjects/{subject}?permanent=true` and the subject is NOT soft-deleted
+**Then** I receive HTTP 404 with error code 40405
+
+**Given** any list endpoint with `offset` and `limit` query params
+**Then** results are paginated (offset default=0, limit default=-1 meaning unlimited)
+
+**Given** `GET /config/{subject}` without `defaultToGlobal` and no per-subject config exists
+**Then** I receive HTTP 404 with error code 40408
+
+**Given** `DELETE /config`
+**Then** global config resets to BACKWARD
+
+**Given** `GET /schemas/ids/{id}` for an AVRO schema
+**Then** `schemaType` is omitted from the response
+
+**Given** `GET /schemas/ids/{id}?fetchMaxId=true`
+**Then** response includes `"maxId"` field
+
+**Given** `GET /subjects/{subject}/versions/0` or any negative integer
+**Then** I receive HTTP 422 with error code 42202 (only "latest" and positive integers accepted)
+
+**FRs:** FR47
+
+### Story 4.3: Confluent API Parity — List & Lookup Params
+
+As a **developer using Confluent-compatible tooling**,
+I want all list and lookup endpoints to support the full set of Confluent query parameters,
+so that every client library query works identically against Kora.
+
+**Depends on:** Story 4.2
+
+**Acceptance Criteria:**
+
+**Given** `GET /subjects?subjectPrefix=orders`
+**Then** only subjects starting with "orders" are returned (default `:*:` = match all)
+
+**Given** `GET /subjects?deletedOnly=true`
+**Then** ONLY soft-deleted subjects are returned
+
+**Given** `GET /subjects/{subject}/versions?deletedAsNegative=true`
+**Then** soft-deleted versions appear as negative numbers
+
+**Given** `POST /subjects/{subject}/versions?normalize=true`
+**Then** the schema is normalized before fingerprint comparison and deduplication
+
+**Given** `POST /subjects/{subject}?deleted=true`
+**Then** soft-deleted schema matches are included in the lookup
+
+**Given** `GET /schemas/ids/{id}/subjects?deleted=true`
+**Then** soft-deleted subjects are included
+
+**Given** `GET /subjects/{subject}/versions/2?deleted=true` for a soft-deleted version
+**Then** the soft-deleted version is returned
+
+**FRs:** FR47
+
+### Story 4.4: List All Schemas and Raw Schema Text Endpoints
+
+As a **developer**,
+I want to list all schemas globally and retrieve raw schema text,
+So that I can discover and access schemas using all Confluent-compatible endpoints.
+
+**Depends on:** Story 4.2 (pagination, format params)
+
+**Acceptance Criteria:**
+
+**Given** registered schemas across multiple subjects
+**When** I send `GET /schemas`
+**Then** I receive HTTP 200 with a list of all schemas (subject, version, id, schemaType)
+
+**Given** registered schemas and query parameter `subjectPrefix=orders`
+**When** I send `GET /schemas?subjectPrefix=orders`
+**Then** I receive only schemas whose subject starts with "orders"
+
+**Given** query parameters `deleted=true`, `latestOnly=true`, `offset=10`, `limit=20`
+**When** I send `GET /schemas?deleted=true&latestOnly=true&offset=10&limit=20`
+**Then** results include soft-deleted schemas, only latest versions, paginated accordingly
+
+**Given** a registered schema with ID 1
+**When** I send `GET /schemas/ids/1/schema`
+**Then** I receive HTTP 200 with the raw schema text only (no wrapper object)
+**And** optional `subject` query param provides context for schema resolution
+
+**Given** subject "orders-value" with version 2
+**When** I send `GET /subjects/orders-value/versions/2/schema`
+**Then** I receive HTTP 200 with the raw schema text only (no wrapper object)
+**And** optional `deleted=true` includes soft-deleted versions
+
+**FRs:** FR33, FR34, FR35
+
+### Story 4.5: Referenced-By Lookup
+
+As a **developer**,
+I want to find which schemas reference a given schema version,
+So that I can understand downstream dependencies before making changes.
+
+**Depends on:** Story 4.2 (pagination, deleted param)
+
+**Acceptance Criteria:**
+
+**Given** schema "orders-value" v1 references "users-value" v1
+**When** I send `GET /subjects/users-value/versions/1/referencedby`
+**Then** I receive HTTP 200 with `[<schema_id_of_orders_v1>]`
+
+**Given** a schema version with no dependents
+**When** I send `GET /subjects/orders-value/versions/1/referencedby`
+**Then** I receive HTTP 200 with `[]`
+
+**Given** pagination on referencedby
+**When** I send `GET /subjects/users-value/versions/1/referencedby?offset=0&limit=10`
+**Then** results are paginated (limit=-1 means unlimited, default)
+
+**Given** `deleted=true`
+**When** I send `GET /subjects/users-value/versions/1/referencedby?deleted=true`
+**Then** soft-deleted referencing schemas are included
+
+**Given** a non-existent subject or version
+**When** I send `GET /subjects/unknown/versions/1/referencedby`
+**Then** I receive HTTP 404 with Confluent error code 40401
+
+**FRs:** FR36
+
+## Epic 5: Compatibility Enforcement
+
+A developer can test schema compatibility and the registry enforces all 7 compatibility modes on registration.
+
+### Story 5.1: Compatibility Test Endpoint
 
 As a **developer**,
 I want to test if a new schema is compatible with existing versions,
@@ -534,13 +710,25 @@ So that I can validate schema changes before registering them.
 **When** I send `POST /compatibility/subjects/orders-value/versions/latest` with an incompatible schema
 **Then** I receive HTTP 200 with `{"is_compatible": false}`
 
+**Given** subject "orders-value" with compatibility mode BACKWARD and `verbose=true`
+**When** I send `POST /compatibility/subjects/orders-value/versions/latest?verbose=true` with an incompatible schema
+**Then** I receive HTTP 200 with `{"is_compatible": false, "messages": ["...descriptive incompatibility messages..."]}`
+
+**Given** subject "orders-value" with versions 1, 2, 3
+**When** I send `POST /compatibility/subjects/orders-value/versions` with a new schema
+**Then** compatibility is tested against ALL versions (1, 2, 3)
+
+**Given** `normalize=true` on compatibility check
+**When** I send `POST /compatibility/subjects/orders-value/versions/latest?normalize=true`
+**Then** the schema is normalized before compatibility testing
+
 **Given** a non-existent subject
 **When** I send `POST /compatibility/subjects/unknown/versions/latest`
 **Then** I receive HTTP 404 with Confluent error code 40401
 
-**FRs:** FR20
+**FRs:** FR20, FR37, FR38
 
-### Story 4.3: Enforce All Compatibility Modes (Avro)
+### Story 5.2: Enforce All Compatibility Modes (Avro)
 
 As a **developer**,
 I want the registry to enforce all 7 compatibility modes when registering schemas,
@@ -574,70 +762,6 @@ So that incompatible schema changes are rejected automatically.
 
 **FRs:** FR26, FR27, FR28, FR29, FR30, FR31, FR32
 
-## Epic 5: Schema Comparison
-
-A developer can obtain semantic diffs between schemas with typed classifications and verdicts.
-
-### Story 5.1: Pairwise Schema Diff by Subject Versions
-
-As a **developer**,
-I want to get a semantic diff between two versions of the same subject,
-So that I can understand what changed between schema versions.
-
-**Acceptance Criteria:**
-
-**Given** subject "orders-value" with versions 1 and 2
-**When** I send `GET /kora/v1/subjects/orders-value/versions/1/diff/2`
-**Then** I receive HTTP 200 with a diff containing typed changes (field added, type changed, etc.)
-**And** each change includes a breaking/compatible verdict
-**And** a summary with total changes, breaking count, and compatible count
-
-**Given** a non-existent subject or version
-**When** I request a diff
-**Then** I receive HTTP 404 with appropriate error
-
-**FRs:** FR33, FR36, FR37, FR38
-
-### Story 5.2: Arbitrary Schema Comparison
-
-As a **developer**,
-I want to submit two arbitrary schemas and get a semantic diff,
-So that I can compare schemas that are not yet registered.
-
-**Acceptance Criteria:**
-
-**Given** two valid Avro schemas
-**When** I send `POST /kora/v1/schemas/compare` with `{"source": {...}, "target": {...}, "schemaType": "AVRO"}`
-**Then** I receive HTTP 200 with a typed diff, verdicts, and summary
-
-**Given** two schemas of different types
-**When** I send `POST /kora/v1/schemas/compare` with mismatched types
-**Then** I receive HTTP 422 with an error indicating types must match
-
-**Given** an invalid schema in source or target
-**When** I send `POST /kora/v1/schemas/compare`
-**Then** I receive HTTP 422 with parse error details
-
-**FRs:** FR34, FR36, FR37, FR38
-
-### Story 5.3: Chain Diff Across Version Range
-
-As a **developer**,
-I want a cumulative diff across a range of versions,
-So that I can understand the total evolution of a schema over time.
-
-**Acceptance Criteria:**
-
-**Given** subject "orders-value" with versions 1, 2, 3, 4
-**When** I send `GET /kora/v1/subjects/orders-value/versions/1/diff/4?chain=true`
-**Then** I receive HTTP 200 with per-step diffs (1→2, 2→3, 3→4) and a cumulative summary
-
-**Given** a version range where start > end
-**When** I request a chain diff
-**Then** I receive HTTP 422 with an error indicating invalid range
-
-**FRs:** FR35, FR36, FR37, FR38
-
 ## Epic 6: Operations & Packaging
 
 An operator can control registry mode, access metrics, and deploy via Docker all-in-one.
@@ -645,7 +769,7 @@ An operator can control registry mode, access metrics, and deploy via Docker all
 ### Story 6.1: Registry Mode Control
 
 As an **operator**,
-I want to get and set the registry mode (READWRITE, READONLY, IMPORT),
+I want to get and set the registry mode (READWRITE, READONLY, READONLY_OVERRIDE, IMPORT),
 So that I can control write access during maintenance or migration.
 
 **Acceptance Criteria:**
@@ -662,6 +786,43 @@ So that I can control write access during maintenance or migration.
 **Given** IMPORT mode is set
 **When** I register a schema with an explicit ID
 **Then** the system accepts the provided ID instead of auto-allocating
+
+**Given** READONLY_OVERRIDE mode is set at subject level
+**When** I attempt to register a schema under that subject
+**Then** registration succeeds (READONLY_OVERRIDE allows writes despite global READONLY)
+
+**Given** `force=true`
+**When** I send `PUT /mode?force=true` with `{"mode": "READONLY"}`
+**Then** the mode is set even if there are pending operations
+
+**Given** subject "orders-value" exists
+**When** I send `PUT /mode/orders-value` with `{"mode": "READONLY"}`
+**Then** I receive HTTP 200 with `{"mode": "READONLY"}`
+
+**Given** subject "orders-value" has per-subject mode
+**When** I send `GET /mode/orders-value`
+**Then** I receive the per-subject mode
+
+**Given** subject has NO per-subject mode and `defaultToGlobal=true`
+**When** I send `GET /mode/orders-value?defaultToGlobal=true`
+**Then** I receive the global mode as fallback
+
+**Given** subject has NO per-subject mode and `defaultToGlobal` is not set
+**When** I send `GET /mode/orders-value`
+**Then** I receive HTTP 404 with Confluent error code 40409 (subject mode not configured)
+
+**Given** an invalid mode value
+**When** I send `PUT /mode` with `{"mode": "INVALID"}`
+**Then** I receive HTTP 422 with Confluent error code 42204 (invalid mode)
+
+**Given** subject "orders-value" has per-subject mode
+**When** I send `DELETE /mode/orders-value`
+**Then** the per-subject mode is removed, falling back to global
+**And** `recursive=true` propagates deletion to child subjects if applicable
+
+**Given** a global mode override exists
+**When** I send `DELETE /mode`
+**Then** the global mode resets to READWRITE
 
 **FRs:** FR43, FR44
 
