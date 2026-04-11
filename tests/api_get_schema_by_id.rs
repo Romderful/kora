@@ -18,8 +18,8 @@ async fn get_schema_by_id_succeeds() {
 
     let body: serde_json::Value = resp.json().await.unwrap();
     assert_eq!(body["schema"].as_str().unwrap(), common::AVRO_SCHEMA_V1);
-    assert_eq!(body["schemaType"], "AVRO");
-    assert_eq!(body["id"], id);
+    // schemaType is omitted for AVRO (Confluent default behavior).
+    assert!(body.get("schemaType").is_none(), "schemaType should be omitted for AVRO");
 }
 
 #[tokio::test]
@@ -50,6 +50,52 @@ async fn get_schema_by_id_soft_deleted_still_returns_200() {
 
     let body: serde_json::Value = resp.json().await.unwrap();
     assert_eq!(body["schema"].as_str().unwrap(), common::AVRO_SCHEMA_V1);
+}
+
+#[tokio::test]
+async fn get_schema_by_id_includes_schema_type_for_json() {
+    let base = common::spawn_server().await;
+    let client = reqwest::Client::new();
+    let subject = format!("json-type-{}", uuid::Uuid::new_v4());
+
+    let id = common::api::register_schema_with_type(&client, &base, &subject, common::JSON_SCHEMA_V1, "JSON").await;
+
+    let resp = common::api::get_schema_by_id(&client, &base, id).await;
+    let body: serde_json::Value = resp.json().await.unwrap();
+
+    assert_eq!(body["schemaType"], "JSON");
+}
+
+#[tokio::test]
+async fn get_schema_by_id_with_fetch_max_id() {
+    let base = common::spawn_server().await;
+    let client = reqwest::Client::new();
+    let subject = format!("maxid-{}", uuid::Uuid::new_v4());
+
+    let id = common::api::register_schema(&client, &base, &subject, common::AVRO_SCHEMA_V1).await;
+
+    let resp = client
+        .get(format!("{base}/schemas/ids/{id}?fetchMaxId=true"))
+        .send().await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body: serde_json::Value = resp.json().await.unwrap();
+
+    assert!(body["maxId"].is_number(), "maxId should be present when fetchMaxId=true");
+    assert!(body["maxId"].as_i64().unwrap() >= id);
+}
+
+#[tokio::test]
+async fn get_schema_by_id_accepts_format_and_subject_params() {
+    let base = common::spawn_server().await;
+    let client = reqwest::Client::new();
+    let subject = format!("fmt-{}", uuid::Uuid::new_v4());
+
+    let id = common::api::register_schema(&client, &base, &subject, common::AVRO_SCHEMA_V1).await;
+
+    let resp = client
+        .get(format!("{base}/schemas/ids/{id}?format=serialized&subject={subject}&referenceFormat=DEFAULT"))
+        .send().await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
 }
 
 #[tokio::test]

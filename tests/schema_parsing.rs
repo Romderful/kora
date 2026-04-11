@@ -4,7 +4,7 @@ mod common;
 
 use kora::schema::{self, SchemaFormat};
 
-// --- SchemaFormat dispatch ---
+// -- SchemaFormat dispatch --
 
 #[test]
 fn format_default_is_avro() {
@@ -36,7 +36,7 @@ fn format_unsupported_errors() {
     assert!(err.to_string().contains("Unsupported schema type"));
 }
 
-// --- Avro Schema parsing ---
+// -- Avro Schema parsing --
 
 #[test]
 fn avro_parse_valid() {
@@ -78,7 +78,7 @@ fn avro_different_schemas_have_different_fingerprints() {
     assert_ne!(a.fingerprint, b.fingerprint);
 }
 
-// --- JSON Schema parsing ---
+// -- JSON Schema parsing --
 
 #[test]
 fn json_parse_valid() {
@@ -130,7 +130,7 @@ fn json_canonical_form_sorts_keys() {
     assert_eq!(a.fingerprint, b.fingerprint);
 }
 
-// --- Protobuf parsing ---
+// -- Protobuf parsing --
 
 #[test]
 fn protobuf_parse_valid() {

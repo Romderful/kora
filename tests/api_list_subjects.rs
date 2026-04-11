@@ -35,6 +35,48 @@ async fn list_versions_returns_sorted_versions() {
 }
 
 #[tokio::test]
+async fn list_subjects_with_pagination() {
+    let base = common::spawn_server().await;
+    let client = reqwest::Client::new();
+
+    // limit=-1 (unlimited, default) returns 200.
+    let resp = client.get(format!("{base}/subjects?limit=-1")).send().await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    // Large offset returns empty or small set.
+    let resp = client.get(format!("{base}/subjects?offset=1000")).send().await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let empty: Vec<String> = resp.json().await.unwrap();
+    assert!(empty.is_empty());
+}
+
+#[tokio::test]
+async fn list_versions_with_pagination() {
+    let base = common::spawn_server().await;
+    let client = reqwest::Client::new();
+    let subject = format!("pag-ver-{}", uuid::Uuid::new_v4());
+
+    common::api::register_schema(&client, &base, &subject, common::AVRO_SCHEMA_V1).await;
+    common::api::register_schema(&client, &base, &subject, common::AVRO_SCHEMA_V2).await;
+    common::api::register_schema(&client, &base, &subject, common::AVRO_SCHEMA_V3).await;
+
+    // First 2 versions.
+    let resp = client
+        .get(format!("{base}/subjects/{subject}/versions?offset=0&limit=2"))
+        .send().await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let versions: Vec<i32> = resp.json().await.unwrap();
+    assert_eq!(versions, vec![1, 2]);
+
+    // Skip first, get rest.
+    let resp = client
+        .get(format!("{base}/subjects/{subject}/versions?offset=1&limit=10"))
+        .send().await.unwrap();
+    let versions: Vec<i32> = resp.json().await.unwrap();
+    assert_eq!(versions, vec![2, 3]);
+}
+
+#[tokio::test]
 async fn list_versions_unknown_subject_returns_40401() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();

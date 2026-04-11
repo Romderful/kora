@@ -64,7 +64,7 @@ development_status:
   # ── Epic 4: Confluent API Parity ──
   epic-4: in-progress
   4-1-compatibility-configuration-crud: done
-  4-2-confluent-api-parity-infrastructure: ready-for-dev    # ← START HERE
+  4-2-confluent-api-parity-infrastructure: done
   4-3-confluent-api-parity-list-params: ready-for-dev
   4-4-list-all-schemas-and-raw-schema-text: backlog
   4-5-referenced-by-lookup: backlog

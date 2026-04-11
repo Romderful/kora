@@ -4,23 +4,20 @@ use sqlx::PgPool;
 
 // -- Queries --
 
-/// Get the compatibility level for a subject, falling back to global default.
+/// Get the per-subject compatibility level only (no fallback).
+///
+/// Returns `None` if no per-subject config exists.
 ///
 /// # Errors
 ///
 /// Returns a database error on connection failure.
-pub async fn get_level(pool: &PgPool, subject: &str) -> Result<String, sqlx::Error> {
-    let level = sqlx::query_scalar::<_, String>(
-        r"SELECT compatibility_level FROM config
-          WHERE subject = $1 OR subject IS NULL
-          ORDER BY subject IS NULL
-          LIMIT 1",
+pub async fn get_subject_level(pool: &PgPool, subject: &str) -> Result<Option<String>, sqlx::Error> {
+    sqlx::query_scalar::<_, String>(
+        "SELECT compatibility_level FROM config WHERE subject = $1",
     )
     .bind(subject)
-    .fetch_one(pool)
-    .await?;
-
-    Ok(level)
+    .fetch_optional(pool)
+    .await
 }
 
 /// Get the global compatibility level.
@@ -74,16 +71,44 @@ pub async fn set_subject_level(
     .await
 }
 
-/// Delete per-subject config, returning the global fallback level.
+/// Delete per-subject config, returning the **previous** level that was deleted.
+///
+/// Returns `None` if no per-subject config existed.
 ///
 /// # Errors
 ///
 /// Returns a database error on connection failure.
-pub async fn delete_subject_level(pool: &PgPool, subject: &str) -> Result<String, sqlx::Error> {
-    sqlx::query("DELETE FROM config WHERE subject = $1")
-        .bind(subject)
-        .execute(pool)
-        .await?;
+pub async fn delete_subject_level(pool: &PgPool, subject: &str) -> Result<Option<String>, sqlx::Error> {
+    sqlx::query_scalar::<_, String>(
+        "DELETE FROM config WHERE subject = $1 RETURNING compatibility_level",
+    )
+    .bind(subject)
+    .fetch_optional(pool)
+    .await
+}
 
-    get_global_level(pool).await
+/// Delete (reset) the global compatibility level to BACKWARD (default).
+///
+/// Returns the **previous** global level before the reset.
+///
+/// # Errors
+///
+/// Returns a database error on connection failure.
+pub async fn delete_global_level(pool: &PgPool) -> Result<String, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+
+    let previous = sqlx::query_scalar::<_, String>(
+        "SELECT compatibility_level FROM config WHERE subject IS NULL FOR UPDATE",
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+
+    sqlx::query(
+        "UPDATE config SET compatibility_level = 'BACKWARD', updated_at = now() WHERE subject IS NULL",
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(previous)
 }

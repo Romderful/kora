@@ -2,14 +2,22 @@
 
 use axum::{
     Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     response::IntoResponse,
 };
 use serde::Deserialize;
 use sqlx::PgPool;
 
 use crate::error::KoraError;
-use crate::storage::{compatibility, subjects};
+use crate::storage::compatibility;
+
+/// Query parameter for `defaultToGlobal` on config GET endpoints.
+#[derive(Debug, Deserialize)]
+pub struct DefaultToGlobalParam {
+    /// When true, fall back to global config if subject has no per-subject config.
+    #[serde(default, rename = "defaultToGlobal")]
+    pub default_to_global: bool,
+}
 
 // -- Types --
 
@@ -42,6 +50,7 @@ pub struct CompatibilityRequest {
 /// Returns `KoraError::BackendDataStore` (500) for database failures.
 pub async fn get_global_compatibility(
     State(pool): State<PgPool>,
+    Query(_params): Query<DefaultToGlobalParam>,
 ) -> Result<impl IntoResponse, KoraError> {
     let level = compatibility::get_global_level(&pool).await?;
     Ok(Json(serde_json::json!({ "compatibilityLevel": level })))
@@ -75,13 +84,20 @@ pub async fn set_global_compatibility(
 pub async fn get_subject_compatibility(
     State(pool): State<PgPool>,
     Path(subject): Path<String>,
+    Query(params): Query<DefaultToGlobalParam>,
 ) -> Result<impl IntoResponse, KoraError> {
-    if !subjects::subject_exists(&pool, &subject).await? {
-        return Err(KoraError::SubjectNotFound);
+    // Confluent does not check subject existence — only config existence.
+    if let Some(level) = compatibility::get_subject_level(&pool, &subject).await? {
+        return Ok(Json(serde_json::json!({ "compatibilityLevel": level })));
     }
 
-    let level = compatibility::get_level(&pool, &subject).await?;
-    Ok(Json(serde_json::json!({ "compatibilityLevel": level })))
+    // No per-subject config — fall back or return 40408.
+    if params.default_to_global {
+        let level = compatibility::get_global_level(&pool).await?;
+        Ok(Json(serde_json::json!({ "compatibilityLevel": level })))
+    } else {
+        Err(KoraError::SubjectCompatibilityNotConfigured(subject))
+    }
 }
 
 /// Update the compatibility configuration for a subject.
@@ -97,18 +113,31 @@ pub async fn set_subject_compatibility(
     Path(subject): Path<String>,
     Json(body): Json<CompatibilityRequest>,
 ) -> Result<impl IntoResponse, KoraError> {
-    if !subjects::subject_exists(&pool, &subject).await? {
-        return Err(KoraError::SubjectNotFound);
-    }
-
+    // Confluent allows setting config on any subject name (no existence check).
     validate_level(&body.compatibility)?;
     let level = compatibility::set_subject_level(&pool, &subject, &body.compatibility).await?;
     Ok(Json(serde_json::json!({ "compatibility": level })))
 }
 
-/// Delete per-subject compatibility configuration (falls back to global).
+/// Delete global compatibility configuration (reset to BACKWARD).
+///
+/// `DELETE /config`
+///
+/// # Errors
+///
+/// Returns `KoraError::BackendDataStore` (50001) for database failures.
+pub async fn delete_global_compatibility(
+    State(pool): State<PgPool>,
+) -> Result<impl IntoResponse, KoraError> {
+    let previous = compatibility::delete_global_level(&pool).await?;
+    Ok(Json(serde_json::json!({ "compatibilityLevel": previous })))
+}
+
+/// Delete per-subject compatibility configuration.
 ///
 /// `DELETE /config/{subject}`
+///
+/// Returns the **previous** per-subject level (not the global fallback).
 ///
 /// # Errors
 ///
@@ -117,12 +146,11 @@ pub async fn delete_subject_compatibility(
     State(pool): State<PgPool>,
     Path(subject): Path<String>,
 ) -> Result<impl IntoResponse, KoraError> {
-    if !subjects::subject_exists(&pool, &subject).await? {
-        return Err(KoraError::SubjectNotFound);
-    }
-
-    let fallback = compatibility::delete_subject_level(&pool, &subject).await?;
-    Ok(Json(serde_json::json!({ "compatibility": fallback })))
+    // Confluent checks config existence, not subject existence.
+    let previous = compatibility::delete_subject_level(&pool, &subject)
+        .await?
+        .ok_or(KoraError::SubjectNotFound)?;
+    Ok(Json(serde_json::json!({ "compatibilityLevel": previous })))
 }
 
 // -- Helpers --

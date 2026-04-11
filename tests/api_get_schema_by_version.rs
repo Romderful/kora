@@ -73,7 +73,7 @@ async fn get_schema_by_version_unknown_returns_40402() {
 }
 
 #[tokio::test]
-async fn get_schema_by_version_negative_returns_40402() {
+async fn get_schema_by_version_negative_returns_42202() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("neg-{}", uuid::Uuid::new_v4());
@@ -82,13 +82,13 @@ async fn get_schema_by_version_negative_returns_40402() {
 
     let resp = common::api::get_schema_by_version(&client, &base, &subject, "-1").await;
 
-    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
     let body: serde_json::Value = resp.json().await.unwrap();
-    assert_eq!(body["error_code"], 40402);
+    assert_eq!(body["error_code"], 42202);
 }
 
 #[tokio::test]
-async fn get_schema_by_version_zero_returns_40402() {
+async fn get_schema_by_version_zero_returns_42202() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("zero-{}", uuid::Uuid::new_v4());
@@ -97,9 +97,38 @@ async fn get_schema_by_version_zero_returns_40402() {
 
     let resp = common::api::get_schema_by_version(&client, &base, &subject, "0").await;
 
-    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
     let body: serde_json::Value = resp.json().await.unwrap();
-    assert_eq!(body["error_code"], 40402);
+    assert_eq!(body["error_code"], 42202);
+}
+
+#[tokio::test]
+async fn get_schema_by_version_non_numeric_returns_42202() {
+    let base = common::spawn_server().await;
+    let client = reqwest::Client::new();
+    let subject = format!("abc-{}", uuid::Uuid::new_v4());
+
+    common::api::register_schema(&client, &base, &subject, common::AVRO_SCHEMA_V1).await;
+
+    let resp = common::api::get_schema_by_version(&client, &base, &subject, "abc").await;
+
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    let body: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(body["error_code"], 42202);
+}
+
+#[tokio::test]
+async fn get_schema_by_version_accepts_format_params() {
+    let base = common::spawn_server().await;
+    let client = reqwest::Client::new();
+    let subject = format!("fmt-ver-{}", uuid::Uuid::new_v4());
+
+    common::api::register_schema(&client, &base, &subject, common::AVRO_SCHEMA_V1).await;
+
+    let resp = client
+        .get(format!("{base}/subjects/{subject}/versions/1?format=serialized&referenceFormat=DEFAULT"))
+        .send().await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
 }
 
 #[tokio::test]

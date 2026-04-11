@@ -88,7 +88,7 @@ so that every Confluent client library query works identically against Kora.
 ## Tasks / Subtasks
 
 - [ ] Task 1: `subjectPrefix` + `deletedOnly` on list subjects (AC: 1)
-  - [ ] Replace `DeletedParam` with `ListSubjectsParams { deleted: bool, deleted_only: bool, lookup_deleted_subject: bool, subject_prefix: String, offset: i64, limit: i64 }` with serde renames (`deletedOnly`, `lookupDeletedSubject`, `subjectPrefix`)
+  - [ ] Extend `ListParams` into `ListSubjectsParams { deleted: bool, deleted_only: bool, lookup_deleted_subject: bool, subject_prefix: String, offset: i64, limit: i64 }` with serde renames (`deletedOnly`, `lookupDeletedSubject`, `subjectPrefix`)
   - [ ] `lookupDeletedSubject`: accept-and-ignore (Confluent OSS has it, overlaps with `deleted`/`deletedOnly`)
   - [ ] Default `subject_prefix` to `":*:"` via custom serde default
   - [ ] Extend `storage::list_subjects` to accept prefix + deleted_only
@@ -96,7 +96,7 @@ so that every Confluent client library query works identically against Kora.
   - [ ] Tests: prefix filtering, deletedOnly, default behavior
 
 - [ ] Task 2: `deletedOnly` + `deletedAsNegative` on list versions (AC: 2)
-  - [ ] Replace `DeletedParam` with `ListVersionsParams { deleted: bool, deleted_only: bool, deleted_as_negative: bool, offset: i64, limit: i64 }` with serde renames
+  - [ ] Extend `ListParams` into `ListVersionsParams { deleted: bool, deleted_only: bool, deleted_as_negative: bool, offset: i64, limit: i64 }` with serde renames
   - [ ] Extend `storage::list_schema_versions` to support `deleted_only` and `deleted_as_negative`
   - [ ] For `deletedAsNegative`: SQL returns `-version` for deleted rows, `version` for active rows, ordered by `abs(version)`
   - [ ] Tests: deletedOnly, deletedAsNegative with mix of active/deleted versions
@@ -129,7 +129,7 @@ so that every Confluent client library query works identically against Kora.
 ### Architecture Compliance
 
 - **No new routes** — all changes are query param additions to existing handlers
-- **Extend existing `DeletedParam`** into richer param structs per handler
+- **Extend existing `ListParams`** into richer param structs per handler
 - **Storage layer**: add boolean/string params to existing functions — do NOT create new functions
 - **Pagination** from story 4.2 is already wired — compose with new param structs via `#[serde(flatten)]` or explicit fields
 
@@ -176,7 +176,7 @@ OFFSET $2
 
 | File | Changes |
 |------|---------|
-| `src/api/subjects.rs` | Replace DeletedParam with richer structs, add normalize/deleted params |
+| `src/api/subjects.rs` | Extend ListParams into richer structs, add normalize/deleted params |
 | `src/api/schemas.rs` | Add deleted param to cross-reference handlers |
 | `src/storage/subjects.rs` | Add subjectPrefix, deletedOnly to list_subjects |
 | `src/storage/schemas.rs` | Add deletedOnly, deletedAsNegative to list_versions; add include_deleted to cross-ref + version queries |

@@ -2,7 +2,7 @@
 
 use sqlx::PgPool;
 
-use crate::api::subjects::SchemaReference;
+use crate::types::SchemaReference;
 use crate::error::KoraError;
 
 // -- Queries --
@@ -28,8 +28,7 @@ pub async fn validate_references(
         .bind(&r.subject)
         .bind(r.version)
         .fetch_one(pool)
-        .await
-        .map_err(|e| KoraError::BackendDataStore(e.to_string()))?;
+        .await?;
 
         if !exists {
             return Err(KoraError::ReferenceNotFound(format!(
@@ -41,28 +40,30 @@ pub async fn validate_references(
     Ok(())
 }
 
-/// Insert schema references for a newly registered schema.
+/// Find all references for a given schema ID.
 ///
 /// # Errors
 ///
 /// Returns a database error on connection failure.
-pub async fn insert_references(
+pub async fn find_references_by_schema_id(
     pool: &PgPool,
     schema_id: i64,
-    refs: &[SchemaReference],
-) -> Result<(), sqlx::Error> {
-    for r in refs {
-        sqlx::query(
-            "INSERT INTO schema_references (schema_id, name, subject, version) VALUES ($1, $2, $3, $4)",
-        )
-        .bind(schema_id)
-        .bind(&r.name)
-        .bind(&r.subject)
-        .bind(r.version)
-        .execute(pool)
-        .await?;
-    }
-    Ok(())
+) -> Result<Vec<SchemaReference>, sqlx::Error> {
+    let rows = sqlx::query(
+        "SELECT name, subject, version FROM schema_references WHERE schema_id = $1 ORDER BY name",
+    )
+    .bind(schema_id)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .iter()
+        .map(|row| SchemaReference {
+            name: sqlx::Row::get(row, "name"),
+            subject: sqlx::Row::get(row, "subject"),
+            version: sqlx::Row::get(row, "version"),
+        })
+        .collect())
 }
 
 /// Check if a subject/version is referenced by any **active** (non-deleted) schema.

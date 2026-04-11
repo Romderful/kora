@@ -6,14 +6,25 @@ mod middleware;
 pub mod schemas;
 pub mod subjects;
 
-use axum::{Router, extract::DefaultBodyLimit, routing::{get, post}};
+use axum::{
+    Json, Router,
+    extract::DefaultBodyLimit,
+    response::IntoResponse,
+    routing::{get, post},
+};
 use sqlx::PgPool;
 
 // -- Router --
 
+/// Root endpoint — returns empty JSON object (Confluent compatibility).
+async fn root() -> impl IntoResponse {
+    Json(serde_json::json!({}))
+}
+
 /// Build the application router with all routes.
 pub fn router(pool: PgPool, max_body_size: usize) -> Router {
     Router::new()
+        .route("/", get(root).post(root))
         .route("/health", get(health::check_health))
         .route("/schemas/ids/{id}", get(schemas::get_schema_by_id))
         .route("/schemas/ids/{id}/subjects", get(schemas::get_subjects_by_schema_id))
@@ -31,7 +42,9 @@ pub fn router(pool: PgPool, max_body_size: usize) -> Router {
         )
         .route(
             "/config",
-            get(compatibility::get_global_compatibility).put(compatibility::set_global_compatibility),
+            get(compatibility::get_global_compatibility)
+                .put(compatibility::set_global_compatibility)
+                .delete(compatibility::delete_global_compatibility),
         )
         .route(
             "/config/{subject}",

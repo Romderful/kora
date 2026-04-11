@@ -52,7 +52,7 @@ async fn hard_delete_version_after_soft_delete_succeeds() {
 }
 
 #[tokio::test]
-async fn hard_delete_subject_without_soft_delete_returns_40401() {
+async fn hard_delete_subject_without_soft_delete_returns_40405() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("hard-nosoft-{}", uuid::Uuid::new_v4());
@@ -63,11 +63,11 @@ async fn hard_delete_subject_without_soft_delete_returns_40401() {
 
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     let body: serde_json::Value = resp.json().await.unwrap();
-    assert_eq!(body["error_code"], 40401);
+    assert_eq!(body["error_code"], 40405);
 }
 
 #[tokio::test]
-async fn hard_delete_version_without_soft_delete_returns_40402() {
+async fn hard_delete_version_without_soft_delete_returns_40407() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("hard-ver-nosoft-{}", uuid::Uuid::new_v4());
@@ -78,7 +78,19 @@ async fn hard_delete_version_without_soft_delete_returns_40402() {
 
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     let body: serde_json::Value = resp.json().await.unwrap();
-    assert_eq!(body["error_code"], 40402);
+    assert_eq!(body["error_code"], 40407);
+}
+
+#[tokio::test]
+async fn hard_delete_nonexistent_subject_returns_40401() {
+    let base = common::spawn_server().await;
+    let client = reqwest::Client::new();
+
+    let resp = common::api::hard_delete_subject(&client, &base, "never-existed").await;
+
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    let body: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(body["error_code"], 40401);
 }
 
 #[tokio::test]

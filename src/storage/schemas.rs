@@ -6,8 +6,6 @@ use sqlx::{PgPool, Row};
 
 /// Data needed to insert a new schema version.
 pub struct NewSchema<'a> {
-    /// Subject this schema belongs to.
-    pub subject_id: i64,
     /// Format identifier (e.g. "AVRO").
     pub schema_type: &'a str,
     /// Original schema text as submitted by the client.
@@ -45,43 +43,84 @@ pub struct SchemaVersion {
 
 // -- Queries --
 
-/// Find an existing schema ID by subject and fingerprint (for idempotency).
+/// Register a schema atomically: upsert subject, check for duplicate fingerprint,
+/// insert schema, and store references — all in a single transaction.
 ///
-/// # Errors
+/// Locks the subject row with `FOR UPDATE` to serialize concurrent registrations
+/// and prevent version number races (even on the first schema for a subject).
 ///
-/// Returns a database error on connection failure.
-pub async fn find_schema_id_by_subject_id_and_fingerprint(
-    pool: &PgPool,
-    subject_id: i64,
-    fingerprint: &str,
-) -> Result<Option<i64>, sqlx::Error> {
-    sqlx::query_scalar::<_, i64>(
-        "SELECT id FROM schemas WHERE subject_id = $1 AND fingerprint = $2 AND deleted = false",
-    )
-    .bind(subject_id)
-    .bind(fingerprint)
-    .fetch_optional(pool)
-    .await
-}
-
-/// Insert a new schema with an atomically computed version and return its ID.
+/// Returns `(id, is_new)` — if `is_new` is false, the schema already existed (idempotent).
 ///
 /// # Errors
 ///
 /// Returns a database error on connection or constraint failure.
-pub async fn insert_schema(pool: &PgPool, schema: &NewSchema<'_>) -> Result<i64, sqlx::Error> {
-    sqlx::query_scalar::<_, i64>(
+pub async fn register_schema_atomically(
+    pool: &PgPool,
+    subject_name: &str,
+    schema: &NewSchema<'_>,
+    refs: &[crate::types::SchemaReference],
+) -> Result<(i64, bool), sqlx::Error> {
+    let mut tx = pool.begin().await?;
+
+    // Upsert subject and lock the row — re-activates soft-deleted subjects.
+    let subject_id = sqlx::query_scalar::<_, i64>(
+        r"INSERT INTO subjects (name) VALUES ($1)
+          ON CONFLICT (name) DO UPDATE SET deleted = false, updated_at = now()
+          RETURNING id",
+    )
+    .bind(subject_name)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    // Lock the subject row to serialize concurrent registrations.
+    // Unlike locking schema rows (empty on first insert), the subject row always exists.
+    sqlx::query("SELECT 1 FROM subjects WHERE id = $1 FOR UPDATE")
+        .bind(subject_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+    // Idempotency: return existing ID if same fingerprint already registered.
+    let existing = sqlx::query_scalar::<_, i64>(
+        "SELECT id FROM schemas WHERE subject_id = $1 AND fingerprint = $2 AND deleted = false",
+    )
+    .bind(subject_id)
+    .bind(schema.fingerprint)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    if let Some(id) = existing {
+        tx.commit().await?;
+        return Ok((id, false));
+    }
+
+    let id = sqlx::query_scalar::<_, i64>(
         r"INSERT INTO schemas (subject_id, version, schema_type, schema_text, canonical_form, fingerprint)
            VALUES ($1, COALESCE((SELECT MAX(version) FROM schemas WHERE subject_id = $1), 0) + 1, $2, $3, $4, $5)
            RETURNING id",
     )
-    .bind(schema.subject_id)
+    .bind(subject_id)
     .bind(schema.schema_type)
     .bind(schema.schema_text)
     .bind(schema.canonical_form)
     .bind(schema.fingerprint)
-    .fetch_one(pool)
-    .await
+    .fetch_one(&mut *tx)
+    .await?;
+
+    // Store references inside the same transaction.
+    for r in refs {
+        sqlx::query(
+            "INSERT INTO schema_references (schema_id, name, subject, version) VALUES ($1, $2, $3, $4)",
+        )
+        .bind(id)
+        .bind(&r.name)
+        .bind(&r.subject)
+        .bind(r.version)
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    tx.commit().await?;
+    Ok((id, true))
 }
 
 /// Find a schema by subject name and version number.
@@ -215,10 +254,11 @@ pub async fn hard_delete_schema_version(
     Ok(result)
 }
 
-/// List version numbers for a subject, sorted ascending.
+/// List version numbers for a subject, sorted ascending, with pagination.
 ///
 /// When `include_deleted` is false, returns only active versions.
 /// When true, returns all versions (active + soft-deleted).
+/// `offset` defaults to 0, `limit` of -1 means unlimited.
 ///
 /// # Errors
 ///
@@ -227,15 +267,31 @@ pub async fn list_schema_versions(
     pool: &PgPool,
     subject: &str,
     include_deleted: bool,
+    offset: i64,
+    limit: i64,
 ) -> Result<Vec<i32>, sqlx::Error> {
-    sqlx::query_scalar::<_, i32>(
-        r"SELECT s.version FROM schemas s JOIN subjects sub ON s.subject_id = sub.id
-           WHERE sub.name = $1 AND (s.deleted = false OR $2) ORDER BY s.version",
-    )
-    .bind(subject)
-    .bind(include_deleted)
-    .fetch_all(pool)
-    .await
+    if limit >= 0 {
+        sqlx::query_scalar::<_, i32>(
+            r"SELECT s.version FROM schemas s JOIN subjects sub ON s.subject_id = sub.id
+               WHERE sub.name = $1 AND (s.deleted = false OR $2) ORDER BY s.version OFFSET $3 LIMIT $4",
+        )
+        .bind(subject)
+        .bind(include_deleted)
+        .bind(offset)
+        .bind(limit)
+        .fetch_all(pool)
+        .await
+    } else {
+        sqlx::query_scalar::<_, i32>(
+            r"SELECT s.version FROM schemas s JOIN subjects sub ON s.subject_id = sub.id
+               WHERE sub.name = $1 AND (s.deleted = false OR $2) ORDER BY s.version OFFSET $3",
+        )
+        .bind(subject)
+        .bind(include_deleted)
+        .bind(offset)
+        .fetch_all(pool)
+        .await
+    }
 }
 
 /// Soft-delete a single schema version. Returns the version number if found.
@@ -260,6 +316,42 @@ pub async fn soft_delete_schema_version(
     .await
 }
 
+/// Check if a specific version is soft-deleted under a subject.
+///
+/// # Errors
+///
+/// Returns a database error on connection failure.
+pub async fn version_is_soft_deleted(pool: &PgPool, subject: &str, version: i32) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar::<_, bool>(
+        r"SELECT EXISTS(
+            SELECT 1 FROM schemas s JOIN subjects sub ON s.subject_id = sub.id
+            WHERE sub.name = $1 AND s.version = $2 AND s.deleted = true
+        )",
+    )
+    .bind(subject)
+    .bind(version)
+    .fetch_one(pool)
+    .await
+}
+
+/// Check if a specific version is active (not soft-deleted) under a subject.
+///
+/// # Errors
+///
+/// Returns a database error on connection failure.
+pub async fn version_is_active(pool: &PgPool, subject: &str, version: i32) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar::<_, bool>(
+        r"SELECT EXISTS(
+            SELECT 1 FROM schemas s JOIN subjects sub ON s.subject_id = sub.id
+            WHERE sub.name = $1 AND s.version = $2 AND s.deleted = false
+        )",
+    )
+    .bind(subject)
+    .bind(version)
+    .fetch_one(pool)
+    .await
+}
+
 /// Find a schema by its global ID (ignores soft-delete — IDs are permanent).
 /// Returns `(schema_text, schema_type)`.
 ///
@@ -274,6 +366,18 @@ pub async fn find_schema_by_id(pool: &PgPool, id: i64) -> Result<Option<(String,
         .map(|opt| opt.as_ref().map(|row| (row.get("schema_text"), row.get("schema_type"))))
 }
 
+/// Get the maximum schema ID in the registry.
+///
+/// # Errors
+///
+/// Returns a database error on connection failure.
+pub async fn find_max_schema_id(pool: &PgPool) -> Result<i64, sqlx::Error> {
+    sqlx::query_scalar::<_, Option<i64>>("SELECT MAX(id) FROM schemas")
+        .fetch_one(pool)
+        .await
+        .map(|opt| opt.unwrap_or(0))
+}
+
 /// Check if a schema exists by global ID (ignores soft-delete — IDs are permanent).
 ///
 /// # Errors
@@ -286,24 +390,44 @@ pub async fn schema_exists(pool: &PgPool, id: i64) -> Result<bool, sqlx::Error> 
         .await
 }
 
-/// Find all subjects that use a given schema ID (excludes soft-deleted).
+/// Find all subjects that use a given schema ID, with pagination.
 ///
 /// # Errors
 ///
 /// Returns a database error on connection failure.
-pub async fn find_subjects_by_schema_id(pool: &PgPool, id: i64) -> Result<Vec<String>, sqlx::Error> {
-    sqlx::query_scalar::<_, String>(
-        r"SELECT sub.name
-           FROM schemas s JOIN subjects sub ON s.subject_id = sub.id
-           WHERE s.id = $1 AND s.deleted = false AND sub.deleted = false
-           ORDER BY sub.name",
-    )
-    .bind(id)
-    .fetch_all(pool)
-    .await
+pub async fn find_subjects_by_schema_id(
+    pool: &PgPool,
+    id: i64,
+    offset: i64,
+    limit: i64,
+) -> Result<Vec<String>, sqlx::Error> {
+    if limit >= 0 {
+        sqlx::query_scalar::<_, String>(
+            r"SELECT sub.name
+               FROM schemas s JOIN subjects sub ON s.subject_id = sub.id
+               WHERE s.id = $1 AND s.deleted = false AND sub.deleted = false
+               ORDER BY sub.name OFFSET $2 LIMIT $3",
+        )
+        .bind(id)
+        .bind(offset)
+        .bind(limit)
+        .fetch_all(pool)
+        .await
+    } else {
+        sqlx::query_scalar::<_, String>(
+            r"SELECT sub.name
+               FROM schemas s JOIN subjects sub ON s.subject_id = sub.id
+               WHERE s.id = $1 AND s.deleted = false AND sub.deleted = false
+               ORDER BY sub.name OFFSET $2",
+        )
+        .bind(id)
+        .bind(offset)
+        .fetch_all(pool)
+        .await
+    }
 }
 
-/// Find all subject-version pairs that use a given schema ID (excludes soft-deleted).
+/// Find all subject-version pairs that use a given schema ID, with pagination.
 ///
 /// # Errors
 ///
@@ -311,24 +435,31 @@ pub async fn find_subjects_by_schema_id(pool: &PgPool, id: i64) -> Result<Vec<St
 pub async fn find_versions_by_schema_id(
     pool: &PgPool,
     id: i64,
+    offset: i64,
+    limit: i64,
 ) -> Result<Vec<SubjectVersion>, sqlx::Error> {
-    sqlx::query(
+    let query = if limit >= 0 {
         r"SELECT sub.name as subject, s.version
            FROM schemas s JOIN subjects sub ON s.subject_id = sub.id
            WHERE s.id = $1 AND s.deleted = false AND sub.deleted = false
-           ORDER BY sub.name, s.version",
-    )
-    .bind(id)
-    .fetch_all(pool)
-    .await
-    .map(|rows| {
-        rows.iter()
-            .map(|row| SubjectVersion {
-                subject: row.get("subject"),
-                version: row.get("version"),
-            })
-            .collect()
-    })
+           ORDER BY sub.name, s.version OFFSET $2 LIMIT $3"
+    } else {
+        r"SELECT sub.name as subject, s.version
+           FROM schemas s JOIN subjects sub ON s.subject_id = sub.id
+           WHERE s.id = $1 AND s.deleted = false AND sub.deleted = false
+           ORDER BY sub.name, s.version OFFSET $2"
+    };
+
+    let rows = if limit >= 0 {
+        sqlx::query(query).bind(id).bind(offset).bind(limit).fetch_all(pool).await?
+    } else {
+        sqlx::query(query).bind(id).bind(offset).fetch_all(pool).await?
+    };
+
+    Ok(rows.iter().map(|row| SubjectVersion {
+        subject: row.get("subject"),
+        version: row.get("version"),
+    }).collect())
 }
 
 // -- Helpers --

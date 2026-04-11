@@ -38,9 +38,45 @@ pub enum KoraError {
     /// Schema is referenced and cannot be deleted (42206).
     #[error("One or more references exist to the schema {0}")]
     ReferenceExists(String),
+    /// Subject was soft-deleted (40404).
+    #[error("Subject '{0}' was soft deleted. Set permanent=true to delete permanently")]
+    SubjectSoftDeleted(String),
+    /// Subject was NOT soft-deleted — hard-delete precondition (40405).
+    #[error("Subject '{0}' was not deleted first before being permanently deleted")]
+    SubjectNotSoftDeleted(String),
+    /// Schema version was soft-deleted (40406).
+    #[error("Subject '{0}' Version {1} was soft deleted. Set permanent=true to delete permanently")]
+    SchemaVersionSoftDeleted(String, i32),
+    /// Schema version was NOT soft-deleted — hard-delete precondition (40407).
+    #[error("Subject '{0}' Version {1} was not deleted first before being permanently deleted")]
+    SchemaVersionNotSoftDeleted(String, i32),
+    /// Subject compatibility level not configured (40408).
+    #[error("Subject '{0}' does not have subject-level compatibility configured")]
+    SubjectCompatibilityNotConfigured(String),
+    /// Subject mode not configured (40409).
+    #[error("Subject '{0}' does not have subject-level mode configured")]
+    SubjectModeNotConfigured(String),
+    /// Incompatible schema (40901).
+    #[error("Schema being registered is incompatible with an earlier schema")]
+    IncompatibleSchema,
+    /// Invalid version (42202).
+    #[error("Invalid version: {0}")]
+    InvalidVersion(String),
+    /// Invalid mode (42204).
+    #[error("Invalid mode: {0}")]
+    InvalidMode(String),
+    /// Operation not permitted (42205).
+    #[error("Operation not permitted")]
+    OperationNotPermitted,
     /// Backend data store error (50001).
     #[error("Error in the backend data store: {0}")]
     BackendDataStore(String),
+    /// Operation timed out (50002).
+    #[error("Operation timed out")]
+    OperationTimeout,
+    /// Error while forwarding request to primary (50003).
+    #[error("Error while forwarding the request to the primary")]
+    ForwardingError,
 }
 
 /// Confluent-compatible JSON error body.
@@ -67,8 +103,20 @@ impl KoraError {
             Self::SubjectNotFound => 40401,
             Self::VersionNotFound => 40402,
             Self::SchemaNotFound => 40403,
+            Self::SubjectSoftDeleted(_) => 40404,
+            Self::SubjectNotSoftDeleted(_) => 40405,
+            Self::SchemaVersionSoftDeleted(_, _) => 40406,
+            Self::SchemaVersionNotSoftDeleted(_, _) => 40407,
+            Self::SubjectCompatibilityNotConfigured(_) => 40408,
+            Self::SubjectModeNotConfigured(_) => 40409,
+            Self::IncompatibleSchema => 40901,
+            Self::InvalidVersion(_) => 42202,
+            Self::InvalidMode(_) => 42204,
+            Self::OperationNotPermitted => 42205,
             Self::ReferenceExists(_) => 42206,
             Self::BackendDataStore(_) => 50001,
+            Self::OperationTimeout => 50002,
+            Self::ForwardingError => 50003,
         }
     }
 
@@ -78,11 +126,23 @@ impl KoraError {
             Self::InvalidSchema(_)
             | Self::ReferenceNotFound(_)
             | Self::InvalidCompatibilityLevel(_)
+            | Self::InvalidVersion(_)
+            | Self::InvalidMode(_)
+            | Self::OperationNotPermitted
             | Self::ReferenceExists(_) => StatusCode::UNPROCESSABLE_ENTITY,
-            Self::SubjectNotFound | Self::VersionNotFound | Self::SchemaNotFound => {
-                StatusCode::NOT_FOUND
-            }
-            Self::BackendDataStore(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::SubjectNotFound
+            | Self::VersionNotFound
+            | Self::SchemaNotFound
+            | Self::SubjectSoftDeleted(_)
+            | Self::SubjectNotSoftDeleted(_)
+            | Self::SchemaVersionSoftDeleted(_, _)
+            | Self::SchemaVersionNotSoftDeleted(_, _)
+            | Self::SubjectCompatibilityNotConfigured(_)
+            | Self::SubjectModeNotConfigured(_) => StatusCode::NOT_FOUND,
+            Self::IncompatibleSchema => StatusCode::CONFLICT,
+            Self::BackendDataStore(_)
+            | Self::OperationTimeout
+            | Self::ForwardingError => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }

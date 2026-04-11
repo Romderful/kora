@@ -93,7 +93,7 @@ async fn soft_delete_version_included_with_deleted_flag() {
 }
 
 #[tokio::test]
-async fn soft_delete_subject_already_deleted_returns_40401() {
+async fn soft_delete_subject_already_deleted_returns_40404() {
     let base = common::spawn_server().await;
     let client = reqwest::Client::new();
     let subject = format!("del-twice-{}", uuid::Uuid::new_v4());
@@ -103,10 +103,11 @@ async fn soft_delete_subject_already_deleted_returns_40401() {
     let resp = common::api::delete_subject(&client, &base, &subject).await;
     assert_eq!(resp.status(), StatusCode::OK);
 
+    // Re-deleting a soft-deleted subject returns 40404 (SubjectSoftDeleted).
     let resp = common::api::delete_subject(&client, &base, &subject).await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     let body: serde_json::Value = resp.json().await.unwrap();
-    assert_eq!(body["error_code"], 40401);
+    assert_eq!(body["error_code"], 40404);
 }
 
 #[tokio::test]
