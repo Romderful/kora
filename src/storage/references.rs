@@ -20,9 +20,9 @@ pub async fn validate_references(
     for r in refs {
         let exists = sqlx::query_scalar::<_, bool>(
             r"SELECT EXISTS(
-                SELECT 1 FROM schemas s JOIN subjects sub ON s.subject_id = sub.id
-                WHERE sub.name = $1 AND s.version = $2
-                  AND s.deleted = false AND sub.deleted = false
+                SELECT 1 FROM schema_versions sv JOIN subjects sub ON sv.subject_id = sub.id
+                WHERE sub.name = $1 AND sv.version = $2
+                  AND sv.deleted = false AND sub.deleted = false
             )",
         )
         .bind(&r.subject)
@@ -40,19 +40,19 @@ pub async fn validate_references(
     Ok(())
 }
 
-/// Find all references for a given schema ID.
+/// Find all references for a given schema content ID.
 ///
 /// # Errors
 ///
 /// Returns a database error on connection failure.
 pub async fn find_references_by_schema_id(
     pool: &PgPool,
-    schema_id: i64,
+    content_id: i64,
 ) -> Result<Vec<SchemaReference>, sqlx::Error> {
     let rows = sqlx::query(
-        "SELECT name, subject, version FROM schema_references WHERE schema_id = $1 ORDER BY name",
+        "SELECT name, subject, version FROM schema_references WHERE content_id = $1 ORDER BY name",
     )
-    .bind(schema_id)
+    .bind(content_id)
     .fetch_all(pool)
     .await?;
 
@@ -66,11 +66,10 @@ pub async fn find_references_by_schema_id(
         .collect())
 }
 
-/// Check if a subject/version is referenced by any **active** (non-deleted) schema.
+/// Check if a subject/version is referenced by any **active** (non-deleted) schema version.
 ///
-/// Joins with the schemas table to ignore references from soft-deleted or
-/// hard-deleted schemas — a deleted dependent should not block deletion of
-/// its dependency.
+/// Joins through `schema_versions` to check that at least one active version
+/// uses content that references the given subject/version.
 ///
 /// # Errors
 ///
@@ -83,9 +82,9 @@ pub async fn is_version_referenced(
     sqlx::query_scalar::<_, bool>(
         r"SELECT EXISTS(
             SELECT 1 FROM schema_references sr
-            JOIN schemas s ON sr.schema_id = s.id
+            JOIN schema_versions sv ON sr.content_id = sv.content_id
             WHERE sr.subject = $1 AND sr.version = $2
-              AND s.deleted = false
+              AND sv.deleted = false
         )",
     )
     .bind(subject)
@@ -93,4 +92,3 @@ pub async fn is_version_referenced(
     .fetch_one(pool)
     .await
 }
-

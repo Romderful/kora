@@ -112,7 +112,7 @@ pub async fn soft_delete_subject(pool: &PgPool, name: &str) -> Result<Vec<i32>, 
     let mut tx = pool.begin().await?;
 
     let mut versions = sqlx::query_scalar::<_, i32>(
-        r"UPDATE schemas SET deleted = true
+        r"UPDATE schema_versions SET deleted = true
            WHERE subject_id = (SELECT id FROM subjects WHERE name = $1) AND deleted = false
            RETURNING version",
     )
@@ -142,20 +142,10 @@ pub async fn soft_delete_subject(pool: &PgPool, name: &str) -> Result<Vec<i32>, 
 pub async fn hard_delete_subject(pool: &PgPool, name: &str) -> Result<Vec<i32>, sqlx::Error> {
     let mut tx = pool.begin().await?;
 
-    // Clean up schema_references for schemas being deleted (FK constraint).
-    sqlx::query(
-        r"DELETE FROM schema_references
-           WHERE schema_id IN (
-             SELECT id FROM schemas
-             WHERE subject_id = (SELECT id FROM subjects WHERE name = $1) AND deleted = true
-           )",
-    )
-    .bind(name)
-    .execute(&mut *tx)
-    .await?;
-
+    // No need to clean up schema_references — they belong to schema_contents
+    // which is never deleted (global IDs are permanent).
     let mut versions = sqlx::query_scalar::<_, i32>(
-        r"DELETE FROM schemas
+        r"DELETE FROM schema_versions
            WHERE subject_id = (SELECT id FROM subjects WHERE name = $1) AND deleted = true
            RETURNING version",
     )

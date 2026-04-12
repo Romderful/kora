@@ -164,10 +164,10 @@ The `canonical_form` column is already populated for every schema at registratio
 ### `deletedAsNegative` SQL Pattern
 
 ```sql
-SELECT CASE WHEN s.deleted THEN -s.version ELSE s.version END as version
-FROM schemas s JOIN subjects sub ON s.subject_id = sub.id
+SELECT CASE WHEN sv.deleted THEN -sv.version ELSE sv.version END as version
+FROM schema_versions sv JOIN subjects sub ON sv.subject_id = sub.id
 WHERE sub.name = $1
-ORDER BY abs(s.version)
+ORDER BY abs(sv.version)
 OFFSET $2
 -- LIMIT $3 (omit when -1)
 ```
@@ -199,7 +199,7 @@ Claude Opus 4.6 (1M context)
 
 - **Task 1**: Created `ListSubjectsParams` with `subjectPrefix`, `deletedOnly`, `lookupDeletedSubject` (accept-and-ignore). Updated `storage::list_subjects` to support prefix LIKE filtering and deleted_only mode. Default prefix `:*:` and empty string both return all subjects. 6 tests.
 - **Task 2**: Created `ListVersionsParams` with `deletedOnly` and `deletedAsNegative`. Updated `storage::list_schema_versions` with CASE WHEN SQL for negative version numbers and abs() ordering. 2 tests.
-- **Task 3**: Added `RegisterParams` (normalize) and `CheckParams` (normalize + deleted) query param structs. Implemented full Confluent normalize behavior: `normalize=true` compares canonical fingerprint, `normalize=false` (default) compares raw text fingerprint (SHA-256). Added `raw_fingerprint` column to schemas table, `normalize` column to config table. Config-driven normalize: handler resolves `params.normalize OR get_effective_normalize(subject)` (subject-level then global fallback). 3 tests (normalize dedup, config-driven normalize, without-normalize creates separate versions).
+- **Task 3**: Added `RegisterParams` (normalize) and `CheckParams` (normalize + deleted) query param structs. Implemented full Confluent normalize behavior: `normalize=true` compares canonical fingerprint, `normalize=false` (default) compares raw text fingerprint (SHA-256). Added `raw_fingerprint` column to `schema_contents` table, `normalize` column to config table. Config-driven normalize: handler resolves `params.normalize OR get_effective_normalize(subject)` (subject-level then global fallback). 3 tests (normalize dedup, config-driven normalize, without-normalize creates separate versions).
 - **Task 4**: Extended `check_schema` handler with `deleted` param. Added `find_subject_id_by_name_ext` to storage for deleted-aware subject lookup. Extended `find_schema_by_subject_id_and_fingerprint` with `include_deleted`. 1 test.
 - **Task 5**: Extended `CrossRefParams` with `deleted` and `subject` fields. Updated `find_subjects_by_schema_id` and `find_versions_by_schema_id` storage functions with include_deleted and subject_filter params. 4 tests.
 - **Task 6**: Added `GetVersionParams` with `deleted` field. Extended `find_schema_by_subject_version` with `include_deleted`. 1 test.
@@ -211,24 +211,29 @@ Claude Opus 4.6 (1M context)
 - 2026-04-12: Implemented full `normalize=false` raw text comparison (Confluent parity). Added `raw_fingerprint TEXT NOT NULL` column + indexes. Added `normalize BOOLEAN` to config table with `get_effective_normalize` (subject then global fallback). Config endpoint accepts/persists/returns `normalize`.
 - 2026-04-12: Post-review rounds 2-4 — added indexes on `(subject_id, fingerprint)` and `(subject_id, raw_fingerprint)`; `list_versions` works on soft-deleted subjects with `deleted=true`; error propagation on `get_effective_normalize`; LIKE metacharacter escaping (`%`, `_`, `\`); `get_schema_by_version` correct error for soft-deleted subjects; partial unique index for global config NULL row; `SchemaVersion` omits `schemaType` for AVRO and includes `references`; PUT/DELETE config return `normalize`; lazy exists_check on `get_schema_by_version` happy path. Renamed `PermanentParam` → `PermanentParams`, `DefaultToGlobalParam` → `DefaultToGlobalParams` for consistency.
 - 2026-04-12: Refactored schema parsers — parsers now return `(canonical_form, fingerprint)` tuple, `parse()` constructs the full `ParsedSchema` with `raw_fingerprint`. Eliminates incomplete intermediate state. Renamed `with_references` → `load_references`. Fixed flaky test timing in justfile (`db_ready` check after `pg_isready`).
-- 2026-04-12: Unified storage functions — removed dead `find_subject_id_by_name` (active-only), renamed `_with_deleted` variant to `find_subject_id_by_name(pool, name, include_deleted)`. Merged `subject_exists` + `subject_exists_any` into `subject_exists(pool, name, include_deleted)`. 146 tests pass, clippy clean.
+- 2026-04-12: Unified storage functions — removed dead `find_subject_id_by_name` (active-only), renamed `_with_deleted` variant to `find_subject_id_by_name(pool, name, include_deleted)`. Merged `subject_exists` + `subject_exists_any` into `subject_exists(pool, name, include_deleted)`.
+- 2026-04-12: Global schema dedup — split `schemas` table into `schema_contents` (unique content, global ID) + `schema_versions` (subject/version → content_id). Same schema under different subjects now shares one global ID. Cross-ref endpoints return multiple subjects. `schema_references` FK moved to `schema_contents`. Hard-delete simplified (no cascade). Added `unique_avro_schema()` test helper for content isolation. +5 cross-ref tests. 151 tests pass, clippy clean.
 
 ### File List
 
-- migrations/001_initial_schema.sql (modified) — added `raw_fingerprint TEXT NOT NULL DEFAULT ''` to schemas, `normalize BOOLEAN NOT NULL DEFAULT false` to config, indexes on `(subject_id, fingerprint)` and `(subject_id, raw_fingerprint)`, partial unique index for global config NULL row
+- migrations/001_initial_schema.sql (modified) — `schema_contents` + `schema_versions` tables (global dedup), `schema_references.content_id` FK, `normalize` in config, indexes, partial unique index for global config NULL row
 - src/schema/mod.rs (modified) — `ParsedSchema` with `raw_fingerprint`; `parse()` constructs full struct from parser tuple + SHA-256 of raw text
 - src/schema/avro.rs (modified) — returns `(canonical_form, fingerprint)` tuple instead of `ParsedSchema`
 - src/schema/json_schema.rs (modified) — same
 - src/schema/protobuf.rs (modified) — same
 - src/api/subjects.rs (modified) — new param structs: ListSubjectsParams, ListVersionsParams, RegisterParams, CheckParams, GetVersionParams; normalize resolution via config; `load_references` helper; lazy exists_check; renamed PermanentParams
-- justfile (modified) — added `db_ready` check (psql SELECT 1) after `pg_isready` to fix flaky test timing
 - src/api/schemas.rs (modified) — extended CrossRefParams with deleted + subject
 - src/api/compatibility.rs (modified) — CompatibilityRequest accepts normalize; GET/PUT/DELETE return normalize; renamed DefaultToGlobalParams
-- src/storage/schemas.rs (modified) — `raw_fingerprint` in NewSchema + register; normalize-aware dedup; SchemaVersion with references + skip schemaType for AVRO; all query functions extended with include_deleted/subject_filter/normalize
-- src/storage/subjects.rs (modified) — list_subjects with prefix (LIKE escaped) + deleted_only; find_subject_id_by_name_ext
-- src/storage/compatibility.rs (modified) — get_global_normalize, get_subject_normalize, get_effective_normalize; set functions accept normalize; delete functions return previous normalize
-- tests/api_list_subjects.rs (modified) — +9 tests: subjectPrefix, deletedOnly, deletedAsNegative, combined, lookupDeletedSubject, soft-deleted subject with deleted=true
-- tests/api_register_schema.rs (modified) — +4 tests: normalize dedup, config-driven normalize, JSON reorder with/without normalize
-- tests/api_check_schema.rs (modified) — +3 tests: normalize match, without-normalize miss, deleted finds soft-deleted
-- tests/api_schema_cross_refs.rs (modified) — +4 tests: deleted + subject filter on subjects and versions
-- tests/api_get_schema_by_version.rs (modified) — +2 tests: deleted returns soft-deleted, latest?deleted=true; updated schemaType AVRO assertion
+- src/storage/schemas.rs (rewritten) — two-table model: global content dedup in `register_schema_atomically`, triple JOINs for lookups, cross-refs via `content_id`, simplified hard-delete, organized sections
+- src/storage/subjects.rs (modified) — list_subjects with prefix (LIKE escaped) + deleted_only; unified `subject_exists` + `find_subject_id_by_name`; simplified hard/soft delete (no cascade to schema_references)
+- src/storage/references.rs (modified) — `content_id` FK, `is_version_referenced` joins through `schema_versions`
+- src/storage/compatibility.rs (modified) — get_global_normalize, get_subject_normalize, get_effective_normalize; set/delete functions handle normalize
+- justfile (modified) — `db_ready` check after `pg_isready`
+- tests/common/mod.rs (modified) — added `unique_avro_schema()` helper for content-isolated tests
+- tests/api_list_subjects.rs (modified) — +9 tests
+- tests/api_register_schema.rs (modified) — +4 tests, updated direct SQL queries for new tables
+- tests/api_check_schema.rs (modified) — +3 tests
+- tests/api_schema_cross_refs.rs (rewritten) — unique schemas for isolation, +5 global dedup tests (same ID, multi-subject, soft-delete, hard-delete)
+- tests/api_schema_references.rs (modified) — unique schemas for content isolation
+- tests/api_get_schema_by_version.rs (modified) — +2 tests, updated schemaType AVRO assertion
+- tests/db_migrations.rs (modified) — updated table assertions for new schema

@@ -53,6 +53,18 @@ pub const PROTO_SCHEMA_V1: &str =
 pub const PROTO_SCHEMA_V2: &str =
     "syntax = \"proto3\";\nmessage Test {\n  int32 id = 1;\n  string name = 2;\n}";
 
+// -- Helpers --
+
+/// Generate a unique Avro schema (unique record name → unique fingerprint).
+/// Use this in tests that depend on cross-ref isolation (global content dedup
+/// means shared schema text shares a content ID across all tests).
+pub fn unique_avro_schema() -> String {
+    format!(
+        r#"{{"type":"record","name":"T{}","fields":[{{"name":"id","type":"int"}}]}}"#,
+        uuid::Uuid::new_v4().as_simple()
+    )
+}
+
 // -- Setup --
 
 /// Get `DATABASE_URL` from env. Panics if not set — use `just test` to run.

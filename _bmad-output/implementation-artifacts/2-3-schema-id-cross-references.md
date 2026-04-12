@@ -85,7 +85,7 @@ Response (404): {"error_code": 40403, "message": "Schema not found"}
 
 ### Important: Schema ID vs Fingerprint
 
-Each schema registration gets a unique global ID (`BIGSERIAL`). Two subjects registering the same schema text get **different IDs** (each INSERT creates a new row). The fingerprint deduplication is per-subject only (story 1.2). So `GET /schemas/ids/{id}/subjects` will typically return a single subject. But the Confluent API supports the case where the same ID is referenced by multiple subjects (e.g., via IMPORT mode or future features), so the endpoint returns an array.
+Schema content is globally deduplicated. Two subjects registering the same schema text get the **same global content ID** (from `schema_contents`). `GET /schemas/ids/{id}/subjects` returns all subjects that have a version pointing to that content. This matches Confluent behavior where schema IDs are global across subjects.
 
 ### Soft-Delete Filtering
 

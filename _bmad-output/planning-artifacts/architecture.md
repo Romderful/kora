@@ -143,9 +143,9 @@ cargo add uuid --features "v4,serde"
 
 ### Data Architecture
 
-**Schema Storage Model:** Single unified `schemas` table with format discriminator column. Format-specific logic lives in Rust code, not in DB schema. Stores both raw schema and canonical form (computed on write for deduplication).
+**Schema Storage Model:** Two-table design for global content dedup (Confluent-compatible). `schema_contents` stores unique schema content (text, canonical form, fingerprints) with a global sequential ID. `schema_versions` maps (subject, version) to a content ID, with soft-delete tracking. Identical schema text registered under different subjects shares the same content ID. Format-specific logic lives in Rust code, not in DB schema.
 
-**Schema ID Allocation:** PostgreSQL `BIGSERIAL` sequence. Atomic, zero coordination needed.
+**Schema ID Allocation:** PostgreSQL `BIGSERIAL` sequence on `schema_contents`. The content ID is the global schema ID returned by the API. Same content under different subjects shares one ID (Confluent behavior).
 
 **Migrations:** sqlx built-in migrations (compile-time embedded).
 

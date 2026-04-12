@@ -157,22 +157,32 @@ async fn register_avro_schema_valid_succeeds() {
     let id = common::api::register_schema(&client, &base, &subject, common::AVRO_SCHEMA_V1).await;
     assert!(id > 0);
 
-    // Verify the row stored in DB.
+    // Verify the content stored in DB.
     let row = sqlx::query(
-        "SELECT version, schema_type, schema_text, canonical_form, fingerprint FROM schemas WHERE id = $1",
+        "SELECT schema_type, schema_text, canonical_form, fingerprint FROM schema_contents WHERE id = $1",
     )
     .bind(id)
     .fetch_one(&pool)
     .await
     .unwrap();
 
-    assert_eq!(row.get::<i32, _>("version"), 1);
     assert_eq!(row.get::<String, _>("schema_type"), "AVRO");
     assert_eq!(row.get::<String, _>("schema_text"), common::AVRO_SCHEMA_V1);
 
     let expected = kora::schema::parse(kora::schema::SchemaFormat::Avro, common::AVRO_SCHEMA_V1).unwrap();
     assert_eq!(row.get::<Option<String>, _>("canonical_form").as_deref(), Some(expected.canonical_form.as_str()));
     assert_eq!(row.get::<Option<String>, _>("fingerprint").as_deref(), Some(expected.fingerprint.as_str()));
+
+    // Verify the version row.
+    let version_count: i64 = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM schema_versions sv JOIN subjects sub ON sv.subject_id = sub.id WHERE sub.name = $1 AND sv.content_id = $2",
+    )
+    .bind(&subject)
+    .bind(id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(version_count, 1);
 }
 
 #[tokio::test]
@@ -188,7 +198,7 @@ async fn register_avro_schema_idempotent_returns_same_id() {
     assert_eq!(id1, id2, "same schema should return same id");
 
     let count: i64 = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM schemas s JOIN subjects sub ON s.subject_id = sub.id WHERE sub.name = $1",
+        "SELECT COUNT(*) FROM schema_versions sv JOIN subjects sub ON sv.subject_id = sub.id WHERE sub.name = $1",
     )
     .bind(&subject)
     .fetch_one(&pool)

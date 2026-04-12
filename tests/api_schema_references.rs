@@ -16,13 +16,13 @@ async fn register_schema_with_valid_ref_succeeds() {
     let dep_subject = format!("ref-dep-{}", uuid::Uuid::new_v4());
 
     // Register the referenced schema first.
-    common::api::register_schema(&client, &base, &ref_subject, common::AVRO_SCHEMA_V1).await;
+    common::api::register_schema(&client, &base, &ref_subject, &common::unique_avro_schema()).await;
 
     // Register a schema that references it.
     let refs = serde_json::json!([
         {"name": "Base", "subject": ref_subject, "version": 1}
     ]);
-    let resp = common::api::register_schema_with_refs(&client, &base, &dep_subject, common::AVRO_SCHEMA_V2, &refs).await;
+    let resp = common::api::register_schema_with_refs(&client, &base, &dep_subject, &common::unique_avro_schema(), &refs).await;
     assert_eq!(resp.status(), StatusCode::OK);
 
     let body: serde_json::Value = resp.json().await.unwrap();
@@ -35,7 +35,7 @@ async fn register_schema_without_refs_succeeds() {
     let client = reqwest::Client::new();
     let subject = format!("ref-norefs-{}", uuid::Uuid::new_v4());
 
-    let id = common::api::register_schema(&client, &base, &subject, common::AVRO_SCHEMA_V1).await;
+    let id = common::api::register_schema(&client, &base, &subject, &common::unique_avro_schema()).await;
     assert!(id > 0);
 }
 
@@ -50,7 +50,7 @@ async fn register_schema_ref_nonexistent_subject_returns_422() {
     let refs = serde_json::json!([
         {"name": "Missing", "subject": "nonexistent-subject", "version": 1}
     ]);
-    let resp = common::api::register_schema_with_refs(&client, &base, &subject, common::AVRO_SCHEMA_V1, &refs).await;
+    let resp = common::api::register_schema_with_refs(&client, &base, &subject, &common::unique_avro_schema(), &refs).await;
     assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
 
     let body: serde_json::Value = resp.json().await.unwrap();
@@ -65,13 +65,13 @@ async fn register_schema_ref_nonexistent_version_returns_422() {
     let dep_subject = format!("ref-badver-dep-{}", uuid::Uuid::new_v4());
 
     // Register v1 only.
-    common::api::register_schema(&client, &base, &ref_subject, common::AVRO_SCHEMA_V1).await;
+    common::api::register_schema(&client, &base, &ref_subject, &common::unique_avro_schema()).await;
 
     // Reference v99 which doesn't exist.
     let refs = serde_json::json!([
         {"name": "Base", "subject": ref_subject, "version": 99}
     ]);
-    let resp = common::api::register_schema_with_refs(&client, &base, &dep_subject, common::AVRO_SCHEMA_V2, &refs).await;
+    let resp = common::api::register_schema_with_refs(&client, &base, &dep_subject, &common::unique_avro_schema(), &refs).await;
     assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
 
     let body: serde_json::Value = resp.json().await.unwrap();
@@ -88,11 +88,11 @@ async fn hard_delete_version_referenced_returns_422() {
     let dep_subject = format!("ref-prot-dep-{}", uuid::Uuid::new_v4());
 
     // Register base schema + dependent schema with reference.
-    common::api::register_schema(&client, &base, &ref_subject, common::AVRO_SCHEMA_V1).await;
+    common::api::register_schema(&client, &base, &ref_subject, &common::unique_avro_schema()).await;
     let refs = serde_json::json!([
         {"name": "Base", "subject": ref_subject, "version": 1}
     ]);
-    common::api::register_schema_with_refs(&client, &base, &dep_subject, common::AVRO_SCHEMA_V2, &refs).await;
+    common::api::register_schema_with_refs(&client, &base, &dep_subject, &common::unique_avro_schema(), &refs).await;
 
     // Soft-delete the referenced version first (required before hard-delete).
     common::api::delete_version(&client, &base, &ref_subject, "1").await;
@@ -111,7 +111,7 @@ async fn hard_delete_version_unreferenced_succeeds() {
     let client = reqwest::Client::new();
     let subject = format!("ref-unref-{}", uuid::Uuid::new_v4());
 
-    common::api::register_schema(&client, &base, &subject, common::AVRO_SCHEMA_V1).await;
+    common::api::register_schema(&client, &base, &subject, &common::unique_avro_schema()).await;
 
     // Soft-delete then hard-delete — no references, should succeed.
     common::api::delete_version(&client, &base, &subject, "1").await;
@@ -127,11 +127,11 @@ async fn hard_delete_subject_with_ref_version_returns_422() {
     let dep_subject = format!("ref-subjprot-dep-{}", uuid::Uuid::new_v4());
 
     // Register base + dependent with reference.
-    common::api::register_schema(&client, &base, &ref_subject, common::AVRO_SCHEMA_V1).await;
+    common::api::register_schema(&client, &base, &ref_subject, &common::unique_avro_schema()).await;
     let refs = serde_json::json!([
         {"name": "Base", "subject": ref_subject, "version": 1}
     ]);
-    common::api::register_schema_with_refs(&client, &base, &dep_subject, common::AVRO_SCHEMA_V2, &refs).await;
+    common::api::register_schema_with_refs(&client, &base, &dep_subject, &common::unique_avro_schema(), &refs).await;
 
     // Soft-delete the subject first.
     common::api::delete_subject(&client, &base, &ref_subject).await;
@@ -152,11 +152,11 @@ async fn hard_delete_dependent_then_referenced_succeeds() {
     let dep_subject = format!("ref-chain-dep-{}", uuid::Uuid::new_v4());
 
     // Register base + dependent with reference.
-    common::api::register_schema(&client, &base, &ref_subject, common::AVRO_SCHEMA_V1).await;
+    common::api::register_schema(&client, &base, &ref_subject, &common::unique_avro_schema()).await;
     let refs = serde_json::json!([
         {"name": "Base", "subject": ref_subject, "version": 1}
     ]);
-    common::api::register_schema_with_refs(&client, &base, &dep_subject, common::AVRO_SCHEMA_V2, &refs).await;
+    common::api::register_schema_with_refs(&client, &base, &dep_subject, &common::unique_avro_schema(), &refs).await;
 
     // Hard-delete the dependent first (soft-delete → hard-delete).
     common::api::delete_subject(&client, &base, &dep_subject).await;
@@ -177,11 +177,11 @@ async fn soft_delete_version_referenced_succeeds() {
     let dep_subject = format!("ref-soft-dep-{}", uuid::Uuid::new_v4());
 
     // Register base + dependent with reference.
-    common::api::register_schema(&client, &base, &ref_subject, common::AVRO_SCHEMA_V1).await;
+    common::api::register_schema(&client, &base, &ref_subject, &common::unique_avro_schema()).await;
     let refs = serde_json::json!([
         {"name": "Base", "subject": ref_subject, "version": 1}
     ]);
-    common::api::register_schema_with_refs(&client, &base, &dep_subject, common::AVRO_SCHEMA_V2, &refs).await;
+    common::api::register_schema_with_refs(&client, &base, &dep_subject, &common::unique_avro_schema(), &refs).await;
 
     // Soft-delete should work — only hard-delete is blocked.
     let resp = common::api::delete_version(&client, &base, &ref_subject, "1").await;
