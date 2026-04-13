@@ -67,7 +67,7 @@ development_status:
   4-2-confluent-api-parity-infrastructure: done
   4-3-confluent-api-parity-list-params: done
   4-4-list-all-schemas-and-raw-schema-text: done
-  4-5-referenced-by-lookup: backlog
+  4-5-referenced-by-lookup: done
   epic-4-retrospective: optional
 
   # ── Epic 5: Compatibility Enforcement ──

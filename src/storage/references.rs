@@ -66,6 +66,60 @@ pub async fn find_references_by_schema_id(
         .collect())
 }
 
+/// Find content IDs of schemas that reference the given subject/version.
+///
+/// Returns the global schema IDs (content IDs) of schemas containing a
+/// reference to `target_subject` at `target_version`. When `include_deleted`
+/// is false, only content IDs with at least one active (non-deleted)
+/// `schema_versions` row are returned.
+///
+/// # Errors
+///
+/// Returns a database error on connection failure.
+pub async fn find_referencing_schema_ids(
+    pool: &PgPool,
+    target_subject: &str,
+    target_version: i32,
+    include_deleted: bool,
+    offset: i64,
+    limit: i64,
+) -> Result<Vec<i64>, sqlx::Error> {
+    if limit >= 0 {
+        sqlx::query_scalar(
+            r"SELECT DISTINCT sr.content_id
+               FROM schema_references sr
+               JOIN schema_versions sv ON sr.content_id = sv.content_id
+               WHERE sr.subject = $1 AND sr.version = $2
+                 AND (sv.deleted = false OR $3)
+               ORDER BY sr.content_id
+               OFFSET $4 LIMIT $5",
+        )
+        .bind(target_subject)
+        .bind(target_version)
+        .bind(include_deleted)
+        .bind(offset)
+        .bind(limit)
+        .fetch_all(pool)
+        .await
+    } else {
+        sqlx::query_scalar(
+            r"SELECT DISTINCT sr.content_id
+               FROM schema_references sr
+               JOIN schema_versions sv ON sr.content_id = sv.content_id
+               WHERE sr.subject = $1 AND sr.version = $2
+                 AND (sv.deleted = false OR $3)
+               ORDER BY sr.content_id
+               OFFSET $4",
+        )
+        .bind(target_subject)
+        .bind(target_version)
+        .bind(include_deleted)
+        .bind(offset)
+        .fetch_all(pool)
+        .await
+    }
+}
+
 /// Check if a subject/version is referenced by any **active** (non-deleted) schema version.
 ///
 /// Joins through `schema_versions` to check that at least one active version

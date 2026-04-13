@@ -115,6 +115,20 @@ pub struct PermanentParams {
     pub permanent: bool,
 }
 
+/// Query parameters for `GET /subjects/{subject}/versions/{version}/referencedby`.
+#[derive(Debug, Deserialize)]
+pub struct ReferencedByParams {
+    /// When true, include soft-deleted referencing schema versions.
+    #[serde(default)]
+    pub deleted: bool,
+    /// Pagination offset (default 0).
+    #[serde(default)]
+    pub offset: i64,
+    /// Pagination limit (-1 = unlimited, default).
+    #[serde(default = "default_limit")]
+    pub limit: i64,
+}
+
 // -- Handlers --
 
 /// Register a schema under a subject.
@@ -426,6 +440,49 @@ pub async fn get_schema_text_by_version(
     } else {
         Err(KoraError::SubjectNotFound)
     }
+}
+
+/// List schema IDs that reference a given subject/version.
+///
+/// `GET /subjects/{subject}/versions/{version}/referencedby`
+///
+/// Returns an array of global schema IDs (content IDs) whose schemas contain
+/// a reference to the given subject at the given version.
+///
+/// # Errors
+///
+/// Returns `KoraError::SubjectNotFound` (40401) if the subject doesn't exist,
+/// `KoraError::VersionNotFound` (40402) if the version doesn't exist,
+/// or `KoraError::InvalidVersion` (42202) for invalid version strings.
+pub async fn get_referencing_ids_by_version(
+    State(pool): State<PgPool>,
+    Path((subject, version)): Path<(String, String)>,
+    Query(params): Query<ReferencedByParams>,
+) -> Result<impl IntoResponse, KoraError> {
+    validate_subject(&subject)?;
+    let v = parse_version(&version)?;
+
+    let ids = references::find_referencing_schema_ids(
+        &pool,
+        &subject,
+        v,
+        params.deleted,
+        params.offset.max(0),
+        params.limit,
+    )
+    .await?;
+
+    // Lazy existence check: only when result is empty (avoids extra queries on happy path).
+    if ids.is_empty() {
+        if !subjects::subject_exists(&pool, &subject, false).await? {
+            return Err(KoraError::SubjectNotFound);
+        }
+        if schemas::find_schema_by_subject_version(&pool, &subject, v, false).await?.is_none() {
+            return Err(KoraError::VersionNotFound);
+        }
+    }
+
+    Ok(Json(ids))
 }
 
 // -- Helpers --

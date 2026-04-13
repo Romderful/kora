@@ -47,6 +47,10 @@ pub fn router(pool: PgPool, max_body_size: usize) -> Router {
             get(subjects::get_schema_text_by_version),
         )
         .route(
+            "/subjects/{subject}/versions/{version}/referencedby",
+            get(subjects::get_referencing_ids_by_version),
+        )
+        .route(
             "/config",
             get(compatibility::get_global_compatibility)
                 .put(compatibility::set_global_compatibility)
