@@ -163,7 +163,42 @@ pub async fn get_versions_by_schema_id(client: &Client, base: &str, id: i64) -> 
         .unwrap()
 }
 
-// -- Compatibility operations --
+// -- Compatibility test operations --
+
+/// Test schema compatibility against a specific version (or "latest").
+pub async fn test_compatibility(
+    client: &Client,
+    base: &str,
+    subject: &str,
+    version: &str,
+    schema: &str,
+    schema_type: &str,
+) -> Response {
+    client
+        .post(format!("{base}/compatibility/subjects/{subject}/versions/{version}"))
+        .json(&serde_json::json!({"schema": schema, "schemaType": schema_type}))
+        .send()
+        .await
+        .unwrap()
+}
+
+/// Test schema compatibility: register V1, check V2 against latest. Returns `is_compatible`.
+pub async fn check_compatibility(
+    client: &Client,
+    base: &str,
+    v1: &str,
+    v2: &str,
+    schema_type: &str,
+) -> bool {
+    let subject = format!("compat-{schema_type}-{}", uuid::Uuid::new_v4());
+    register_schema_with_type(client, base, &subject, v1, schema_type).await;
+    let resp = test_compatibility(client, base, &subject, "latest", v2, schema_type).await;
+    resp.json::<serde_json::Value>().await.unwrap()["is_compatible"]
+        .as_bool()
+        .unwrap()
+}
+
+// -- Compatibility config operations --
 
 /// Get the global compatibility level.
 pub async fn get_global_compatibility(client: &Client, base: &str) -> Response {

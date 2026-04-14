@@ -1,4 +1,4 @@
-//! Schema format handling — parsing, canonical form, and fingerprinting.
+//! Schema format handling — parsing, canonical form, fingerprinting, and compatibility.
 
 pub mod avro;
 pub mod json_schema;
@@ -32,7 +32,46 @@ pub struct ParsedSchema {
     pub raw_fingerprint: String,
 }
 
-// -- Functions --
+/// Compatibility check direction resolved from the configured mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompatDirection {
+    /// New schema must read old data.
+    Backward,
+    /// Old schema must read new data.
+    Forward,
+    /// Both directions.
+    Full,
+    /// No check — always compatible.
+    None,
+}
+
+impl CompatDirection {
+    /// Resolve from a compatibility level string (e.g. `"BACKWARD_TRANSITIVE"` → `Backward`).
+    /// Transitive vs non-transitive affects which versions to check, not the direction.
+    #[must_use]
+    pub fn from_level(level: &str) -> Self {
+        if level.starts_with("BACKWARD") {
+            Self::Backward
+        } else if level.starts_with("FORWARD") {
+            Self::Forward
+        } else if level.starts_with("FULL") {
+            Self::Full
+        } else {
+            Self::None
+        }
+    }
+}
+
+/// Result of a schema compatibility check.
+#[derive(Debug)]
+pub struct CompatibilityResult {
+    /// Whether the schemas are compatible under the given mode.
+    pub is_compatible: bool,
+    /// Incompatibility details.
+    pub messages: Vec<String>,
+}
+
+// -- Parsing --
 
 impl SchemaFormat {
     /// Known schema types advertised by the registry (matches Confluent).
@@ -90,4 +129,68 @@ pub fn parse(format: SchemaFormat, raw: &str) -> Result<ParsedSchema, KoraError>
         fingerprint,
         raw_fingerprint,
     })
+}
+
+// -- Compatibility --
+
+/// Check compatibility between a new schema and an existing schema.
+///
+/// # Errors
+///
+/// Returns `KoraError::InvalidSchema` if either schema is malformed.
+pub fn check_compatibility(
+    format: SchemaFormat,
+    new_schema: &str,
+    existing_schema: &str,
+    direction: CompatDirection,
+) -> Result<CompatibilityResult, KoraError> {
+    if direction == CompatDirection::None {
+        return Ok(CompatibilityResult {
+            is_compatible: true,
+            messages: Vec::new(),
+        });
+    }
+
+    match format {
+        SchemaFormat::Avro => avro::check_compatibility(new_schema, existing_schema, direction),
+        SchemaFormat::Json => json_schema::check_compatibility(new_schema, existing_schema, direction),
+        SchemaFormat::Protobuf => protobuf::check_compatibility(new_schema, existing_schema, direction),
+    }
+}
+
+/// Run a directional compatibility check using a format-specific diff function.
+///
+/// The `diff_fn` compares two schemas (old, new) and returns `(is_compatible, messages)`.
+/// This function handles the `BACKWARD/FORWARD/FULL` direction logic so that each
+/// format only needs to provide its diff implementation.
+///
+/// # Errors
+///
+/// Propagates any error from `diff_fn`.
+pub fn check_with_direction(
+    new_schema: &str,
+    existing_schema: &str,
+    direction: CompatDirection,
+    diff_fn: impl Fn(&str, &str) -> Result<(bool, Vec<String>), KoraError>,
+) -> Result<CompatibilityResult, KoraError> {
+    match direction {
+        CompatDirection::Backward => {
+            let (ok, msgs) = diff_fn(existing_schema, new_schema)?;
+            Ok(CompatibilityResult { is_compatible: ok, messages: msgs })
+        }
+        CompatDirection::Forward => {
+            let (ok, msgs) = diff_fn(new_schema, existing_schema)?;
+            Ok(CompatibilityResult { is_compatible: ok, messages: msgs })
+        }
+        CompatDirection::Full => {
+            let (bw_ok, mut msgs) = diff_fn(existing_schema, new_schema)?;
+            let (fw_ok, fw_msgs) = diff_fn(new_schema, existing_schema)?;
+            msgs.extend(fw_msgs);
+            Ok(CompatibilityResult { is_compatible: bw_ok && fw_ok, messages: msgs })
+        }
+        CompatDirection::None => Ok(CompatibilityResult {
+            is_compatible: true,
+            messages: Vec::new(),
+        }),
+    }
 }

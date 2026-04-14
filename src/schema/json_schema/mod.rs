@@ -1,10 +1,13 @@
-//! JSON Schema parsing, canonical form, and fingerprinting.
+//! JSON Schema parsing, canonical form, fingerprinting, and compatibility.
+
+mod diff;
 
 use sha2::{Digest, Sha256};
 
 use crate::error::KoraError;
+use super::{CompatDirection, CompatibilityResult};
 
-// -- Functions --
+// -- Parsing --
 
 /// Parse a JSON Schema string and compute its canonical form and SHA-256 fingerprint.
 ///
@@ -40,6 +43,25 @@ pub fn parse(raw: &str) -> Result<(String, String), KoraError> {
 
     Ok((canonical, fingerprint))
 }
+
+// -- Compatibility --
+
+/// Check compatibility between two JSON Schemas.
+///
+/// Uses Confluent-compatible diff rules with `COMPATIBLE_CHANGES_STRICT`.
+///
+/// # Errors
+///
+/// Returns `KoraError::InvalidSchema` if either schema is malformed.
+pub fn check_compatibility(
+    new_schema: &str,
+    existing_schema: &str,
+    direction: CompatDirection,
+) -> Result<CompatibilityResult, KoraError> {
+    super::check_with_direction(new_schema, existing_schema, direction, diff::check)
+}
+
+// -- Canonical form --
 
 /// Produce a deterministic JSON string with sorted object keys.
 fn canonical_json(value: &serde_json::Value) -> String {

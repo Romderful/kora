@@ -51,6 +51,14 @@ pub fn router(pool: PgPool, max_body_size: usize) -> Router {
             get(subjects::get_referencing_ids_by_version),
         )
         .route(
+            "/compatibility/subjects/{subject}/versions",
+            post(compatibility::test_compatibility_against_all_versions),
+        )
+        .route(
+            "/compatibility/subjects/{subject}/versions/{version}",
+            post(compatibility::test_compatibility_by_version),
+        )
+        .route(
             "/config",
             get(compatibility::get_global_compatibility)
                 .put(compatibility::set_global_compatibility)

@@ -1,23 +1,17 @@
-//! Compatibility configuration API handlers.
+//! Compatibility configuration and testing API handlers.
 
 use axum::{
     Json,
-    extract::{Path, Query, State},
+    extract::{Path, Query, State, rejection::JsonRejection},
     response::IntoResponse,
 };
 use serde::Deserialize;
 use sqlx::PgPool;
 
 use crate::error::KoraError;
-use crate::storage::compatibility;
-
-/// Query parameter for `defaultToGlobal` on config GET endpoints.
-#[derive(Debug, Deserialize)]
-pub struct DefaultToGlobalParams {
-    /// When true, fall back to global config if subject has no per-subject config.
-    #[serde(default, rename = "defaultToGlobal")]
-    pub default_to_global: bool,
-}
+use crate::schema::{self, SchemaFormat};
+use crate::storage::{compatibility, schemas, subjects};
+use crate::types::SchemaReference;
 
 // -- Types --
 
@@ -42,7 +36,39 @@ pub struct CompatibilityRequest {
     pub normalize: bool,
 }
 
-// -- Handlers --
+/// Query parameter for `defaultToGlobal` on config GET endpoints.
+#[derive(Debug, Deserialize)]
+pub struct DefaultToGlobalParams {
+    /// When true, fall back to global config if subject has no per-subject config.
+    #[serde(default, rename = "defaultToGlobal")]
+    pub default_to_global: bool,
+}
+
+/// Request body for compatibility test endpoints.
+#[derive(Debug, Deserialize)]
+pub struct CompatibilityTestRequest {
+    /// The new schema to test.
+    pub schema: String,
+    /// Schema format — defaults to AVRO when absent.
+    #[serde(rename = "schemaType")]
+    pub schema_type: Option<String>,
+    /// Optional schema references.
+    #[serde(default)]
+    pub references: Option<Vec<SchemaReference>>,
+}
+
+/// Query parameters for compatibility test endpoints.
+#[derive(Debug, Deserialize)]
+pub struct CompatibilityTestParams {
+    /// When true, return detailed incompatibility messages.
+    #[serde(default)]
+    pub verbose: bool,
+    /// When true, normalize schemas before testing.
+    #[serde(default)]
+    pub normalize: bool,
+}
+
+// -- Config handlers --
 
 /// Get the global compatibility configuration.
 ///
@@ -159,7 +185,140 @@ pub async fn delete_subject_compatibility(
     Ok(Json(serde_json::json!({ "compatibilityLevel": prev_level, "normalize": prev_normalize })))
 }
 
+// -- Test handlers --
+
+/// Test schema compatibility against a specific version.
+///
+/// `POST /compatibility/subjects/{subject}/versions/{version}`
+///
+/// # Errors
+///
+/// Returns `KoraError::SubjectNotFound` (40401) if the subject doesn't exist,
+/// `KoraError::VersionNotFound` (40402) if the version doesn't exist,
+/// or `KoraError::InvalidSchema` (42201) for unparseable schemas.
+pub async fn test_compatibility_by_version(
+    State(pool): State<PgPool>,
+    Path((subject, version)): Path<(String, String)>,
+    Query(params): Query<CompatibilityTestParams>,
+    body: Result<Json<CompatibilityTestRequest>, JsonRejection>,
+) -> Result<impl IntoResponse, KoraError> {
+    let (format, body) = parse_compat_request(body)?;
+    let existing = resolve_version(&pool, &subject, &version).await?;
+    check_type_match(format, &existing)?;
+
+    let level = compatibility::get_effective_compatibility(&pool, &subject).await?;
+    let direction = schema::CompatDirection::from_level(&level);
+    let result = schema::check_compatibility(format, &body.schema, &existing.schema, direction)?;
+
+    Ok(Json(compat_response(result.is_compatible, &result.messages, params.verbose)))
+}
+
+/// Test schema compatibility against all versions of a subject.
+///
+/// `POST /compatibility/subjects/{subject}/versions`
+///
+/// # Errors
+///
+/// Returns `KoraError::SubjectNotFound` (40401) if the subject doesn't exist,
+/// or `KoraError::InvalidSchema` (42201) for unparseable schemas.
+pub async fn test_compatibility_against_all_versions(
+    State(pool): State<PgPool>,
+    Path(subject): Path<String>,
+    Query(params): Query<CompatibilityTestParams>,
+    body: Result<Json<CompatibilityTestRequest>, JsonRejection>,
+) -> Result<impl IntoResponse, KoraError> {
+    let (format, body) = parse_compat_request(body)?;
+
+    if !subjects::subject_exists(&pool, &subject, false).await? {
+        return Err(KoraError::SubjectNotFound);
+    }
+
+    let version_nums = schemas::list_schema_versions(&pool, &subject, false, false, false, 0, -1).await?;
+    if version_nums.is_empty() {
+        return Ok(Json(compat_response(true, &[], params.verbose)));
+    }
+
+    let level = compatibility::get_effective_compatibility(&pool, &subject).await?;
+    let direction = schema::CompatDirection::from_level(&level);
+    let mut all_messages = Vec::new();
+    let mut is_compatible = true;
+
+    for v in &version_nums {
+        let existing = schemas::find_schema_by_subject_version(&pool, &subject, *v, false)
+            .await?
+            .ok_or(KoraError::VersionNotFound)?;
+        check_type_match(format, &existing)?;
+
+        let result = schema::check_compatibility(format, &body.schema, &existing.schema, direction)?;
+        if !result.is_compatible {
+            is_compatible = false;
+        }
+        all_messages.extend(result.messages);
+    }
+
+    Ok(Json(compat_response(is_compatible, &all_messages, params.verbose)))
+}
+
 // -- Helpers --
+
+/// Parse the request body and validate the schema format.
+fn parse_compat_request(
+    body: Result<Json<CompatibilityTestRequest>, JsonRejection>,
+) -> Result<(SchemaFormat, CompatibilityTestRequest), KoraError> {
+    let Json(body) = body.map_err(|e| KoraError::InvalidSchema(e.body_text()))?;
+    let format = SchemaFormat::from_optional(body.schema_type.as_deref())?;
+    schema::parse(format, &body.schema)?;
+    Ok((format, body))
+}
+
+/// Verify that the new schema type matches the existing one.
+fn check_type_match(format: SchemaFormat, existing: &schemas::SchemaVersion) -> Result<(), KoraError> {
+    let existing_format = SchemaFormat::from_optional(Some(&existing.schema_type))?;
+    if format != existing_format {
+        return Err(KoraError::InvalidSchema(format!(
+            "Schema type mismatch: new is {} but existing is {}",
+            format.as_str(),
+            existing_format.as_str()
+        )));
+    }
+    Ok(())
+}
+
+/// Build the compatibility response JSON, including `messages` only when verbose.
+fn compat_response(is_compatible: bool, messages: &[String], verbose: bool) -> serde_json::Value {
+    let mut body = serde_json::json!({"is_compatible": is_compatible});
+    if verbose {
+        body["messages"] = serde_json::json!(messages);
+    }
+    body
+}
+
+/// Resolve a version string ("latest" or positive integer) to a `SchemaVersion`.
+async fn resolve_version(
+    pool: &PgPool,
+    subject: &str,
+    version: &str,
+) -> Result<schemas::SchemaVersion, KoraError> {
+    let row = if version == "latest" {
+        schemas::find_latest_schema_by_subject(pool, subject, false).await?
+    } else {
+        let v: i32 = version
+            .parse()
+            .map_err(|_| KoraError::InvalidVersion(version.to_string()))?;
+        if v < 1 {
+            return Err(KoraError::InvalidVersion(version.to_string()));
+        }
+        schemas::find_schema_by_subject_version(pool, subject, v, false).await?
+    };
+
+    if let Some(sv) = row {
+        Ok(sv)
+    } else if subjects::subject_exists(pool, subject, false).await? {
+        Err(KoraError::VersionNotFound)
+    } else {
+        Err(KoraError::SubjectNotFound)
+    }
+}
 
 /// Validate that a compatibility level string is one of the known values.
 fn validate_level(level: &str) -> Result<(), KoraError> {

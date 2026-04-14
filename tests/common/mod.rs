@@ -53,6 +53,24 @@ pub const PROTO_SCHEMA_V1: &str =
 pub const PROTO_SCHEMA_V2: &str =
     "syntax = \"proto3\";\nmessage Test {\n  int32 id = 1;\n  string name = 2;\n}";
 
+// -- Compatibility test fixtures (proper Avro evolution with defaults) --
+
+/// Avro record with one required field — base for compatibility testing.
+pub const COMPAT_AVRO_V1: &str =
+    r#"{"type":"record","name":"Test","fields":[{"name":"id","type":"int"}]}"#;
+
+/// Backward-compatible evolution: adds optional field with null default.
+pub const COMPAT_AVRO_V2: &str =
+    r#"{"type":"record","name":"Test","fields":[{"name":"id","type":"int"},{"name":"name","type":["null","string"],"default":null}]}"#;
+
+/// Backward-compatible evolution of V2: adds another optional field.
+pub const COMPAT_AVRO_V3: &str =
+    r#"{"type":"record","name":"Test","fields":[{"name":"id","type":"int"},{"name":"name","type":["null","string"],"default":null},{"name":"active","type":["null","boolean"],"default":null}]}"#;
+
+/// Backward-INCOMPATIBLE schema: adds required field without default.
+pub const COMPAT_AVRO_INCOMPAT: &str =
+    r#"{"type":"record","name":"Test","fields":[{"name":"id","type":"int"},{"name":"email","type":"string"}]}"#;
+
 // -- Helpers --
 
 /// Generate a unique Avro schema (unique record name → unique fingerprint).

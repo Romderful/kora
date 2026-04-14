@@ -1,5 +1,5 @@
 # generated: 2026-04-10
-# last_updated: 2026-04-13
+# last_updated: 2026-04-14
 # project: kora
 # project_key: NOKEY
 # tracking_system: file-system
@@ -29,7 +29,7 @@
 #   4.2 → 4.3 → 4.4/4.5 (parallel) → 5.1 → 5.2 → 6.1/6.2/6.3 (parallel)
 
 generated: 2026-04-10
-last_updated: 2026-04-13
+last_updated: 2026-04-14
 project: kora
 project_key: NOKEY
 tracking_system: file-system
@@ -62,7 +62,7 @@ development_status:
   epic-3-retrospective: optional
 
   # ── Epic 4: Confluent API Parity ──
-  epic-4: in-progress
+  epic-4: done
   4-1-compatibility-configuration-crud: done
   4-2-confluent-api-parity-infrastructure: done
   4-3-confluent-api-parity-list-params: done
@@ -71,8 +71,8 @@ development_status:
   epic-4-retrospective: optional
 
   # ── Epic 5: Compatibility Enforcement ──
-  epic-5: backlog
-  5-1-compatibility-test-endpoint: backlog
+  epic-5: in-progress
+  5-1-compatibility-test-endpoint: done
   5-2-enforce-all-compatibility-modes: backlog
   epic-5-retrospective: optional
 

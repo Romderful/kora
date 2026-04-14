@@ -145,6 +145,18 @@ pub async fn get_effective_normalize(pool: &PgPool, subject: &str) -> Result<boo
     .await
 }
 
+/// Get the effective compatibility level for a subject (subject-level, then global fallback).
+///
+/// # Errors
+///
+/// Returns a database error on connection failure.
+pub async fn get_effective_compatibility(pool: &PgPool, subject: &str) -> Result<String, sqlx::Error> {
+    if let Some(level) = get_subject_level(pool, subject).await? {
+        return Ok(level);
+    }
+    get_global_level(pool).await
+}
+
 /// Delete (reset) the global compatibility level to BACKWARD (default).
 ///
 /// Returns the **previous** `(compatibility_level, normalize)` before the reset.

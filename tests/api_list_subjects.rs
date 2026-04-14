@@ -43,8 +43,8 @@ async fn list_subjects_with_pagination() {
     let resp = client.get(format!("{base}/subjects?limit=-1")).send().await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
 
-    // Large offset returns empty or small set.
-    let resp = client.get(format!("{base}/subjects?offset=1000")).send().await.unwrap();
+    // Large offset returns empty.
+    let resp = client.get(format!("{base}/subjects?offset=999999")).send().await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let empty: Vec<String> = resp.json().await.unwrap();
     assert!(empty.is_empty());
