@@ -1,0 +1,4 @@
+[workspace]
+git_only = true
+pr_labels = ["release"]
+features_always_increment_minor = true
