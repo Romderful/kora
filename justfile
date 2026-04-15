@@ -23,6 +23,12 @@ fmt:
 lint:
     cargo clippy -- -D clippy::all -D clippy::pedantic
 
+# Auto-fix formatting + clippy suggestions
+[group('quality')]
+fix:
+    cargo fmt
+    cargo clippy --fix --allow-dirty -- -D clippy::all -D clippy::pedantic
+
 # ---------- Development ----------
 
 # Run Kora locally with cargo (starts PG automatically)
