@@ -15,11 +15,21 @@ async fn main() {
 
     tracing::info!(host = %cfg.host, port = %cfg.port, "starting Kora");
 
+    let metrics_handle = metrics_exporter_prometheus::PrometheusBuilder::new()
+        .install_recorder()
+        .expect("failed to install Prometheus recorder");
+
+    metrics::describe_counter!("http_requests_total", "Total HTTP requests served");
+    metrics::describe_histogram!("http_request_duration_seconds", "HTTP request latency in seconds");
+    metrics::describe_gauge!("kora_schema_count", "Number of unique schema contents in the registry");
+    metrics::describe_gauge!("kora_db_connections_in_use", "Database connections currently executing queries");
+    metrics::describe_gauge!("kora_db_connections_idle", "Idle database connections in the pool");
+
     let pool = storage::create_pool(&cfg.database_url)
         .await
         .expect("failed to connect to database");
 
-    let app = api::router(pool, cfg.max_body_size);
+    let app = api::router(pool, metrics_handle, cfg.max_body_size);
     let addr = format!("{}:{}", cfg.host, cfg.port);
     let listener = TcpListener::bind(&addr)
         .await

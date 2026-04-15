@@ -79,6 +79,6 @@ development_status:
   # ── Epic 6: Operations & Packaging ──
   epic-6: in-progress
   6-1-registry-mode-control: done
-  6-2-prometheus-metrics: backlog
+  6-2-prometheus-metrics: done
   6-3-docker-all-in-one-packaging: backlog
   epic-6-retrospective: optional

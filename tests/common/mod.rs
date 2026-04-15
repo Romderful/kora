@@ -5,6 +5,9 @@
 
 pub mod api;
 
+use std::sync::OnceLock;
+
+use metrics_exporter_prometheus::PrometheusHandle;
 use tokio::net::TcpListener;
 
 // -- Constants --
@@ -97,11 +100,35 @@ pub async fn pool() -> sqlx::PgPool {
         .expect("database should be reachable")
 }
 
+/// Return a process-wide `PrometheusHandle`, installing the recorder on first call.
+///
+/// `install_recorder()` panics when called twice, so the handle is cached
+/// in a `OnceLock` to guarantee a single installation per test process.
+fn prometheus_handle() -> PrometheusHandle {
+    static HANDLE: OnceLock<PrometheusHandle> = OnceLock::new();
+    HANDLE
+        .get_or_init(|| {
+            let handle = metrics_exporter_prometheus::PrometheusBuilder::new()
+                .install_recorder()
+                .expect("failed to install Prometheus recorder");
+
+            // Mirror the describe_*! calls from main.rs so tests get HELP/TYPE metadata.
+            metrics::describe_counter!("http_requests_total", "Total HTTP requests served");
+            metrics::describe_histogram!("http_request_duration_seconds", "HTTP request latency in seconds");
+            metrics::describe_gauge!("kora_schema_count", "Number of unique schema contents in the registry");
+            metrics::describe_gauge!("kora_db_connections_in_use", "Database connections currently executing queries");
+            metrics::describe_gauge!("kora_db_connections_idle", "Idle database connections in the pool");
+
+            handle
+        })
+        .clone()
+}
+
 /// Spawn the Kora server on a random port and return the base URL.
 pub async fn spawn_server() -> String {
     let pool = pool().await;
     let config = kora::config::KoraConfig::default();
-    let app = kora::api::router(pool, config.max_body_size);
+    let app = kora::api::router(pool, prometheus_handle(), config.max_body_size);
     let listener = TcpListener::bind("127.0.0.1:0")
         .await
         .expect("should bind to random port");

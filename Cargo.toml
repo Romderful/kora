@@ -5,9 +5,11 @@ edition = "2024"
 
 [dependencies]
 apache-avro = "0.21.0"
-axum = "0.8.8"
+axum = { version = "0.8.8", features = ["macros"] }
 figment = { version = "0.10.19", features = ["env"] }
 jsonschema = { version = "0.45.1", default-features = false }
+metrics = "0.24"
+metrics-exporter-prometheus = "0.16"
 prost-types = "0.14.3"
 protox-parse = "0.9"
 regex = "1.12.3"

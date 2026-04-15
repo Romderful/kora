@@ -2,6 +2,7 @@
 
 pub mod compatibility;
 pub mod health;
+pub mod metrics;
 pub mod mode;
 mod middleware;
 pub mod schemas;
@@ -9,11 +10,24 @@ pub mod subjects;
 
 use axum::{
     Json, Router,
-    extract::DefaultBodyLimit,
+    extract::{DefaultBodyLimit, FromRef},
     response::IntoResponse,
     routing::{get, post},
 };
+use metrics_exporter_prometheus::PrometheusHandle;
 use sqlx::PgPool;
+
+// -- State --
+
+/// Shared application state extracted by handlers via axum's `State`.
+///
+/// `FromRef` lets handlers keep extracting `State<PgPool>` directly —
+/// no handler signature changes required.
+#[derive(Clone, FromRef)]
+struct AppState {
+    pool: PgPool,
+    metrics_handle: PrometheusHandle,
+}
 
 // -- Router --
 
@@ -23,8 +37,11 @@ async fn root() -> impl IntoResponse {
 }
 
 /// Build the application router with all routes.
-pub fn router(pool: PgPool, max_body_size: usize) -> Router {
-    Router::new()
+pub fn router(pool: PgPool, metrics_handle: PrometheusHandle, max_body_size: usize) -> Router {
+    let state = AppState { pool, metrics_handle };
+
+    // API routes get the Confluent content-type header.
+    let api = Router::new()
         .route("/", get(root).post(root))
         .route("/health", get(health::check_health))
         .route("/schemas", get(schemas::list_schemas))
@@ -83,7 +100,14 @@ pub fn router(pool: PgPool, max_body_size: usize) -> Router {
                 .put(mode::set_subject_mode)
                 .delete(mode::delete_subject_mode),
         )
+        .layer(middleware::content_type_layer());
+
+    // Operational routes — no Confluent content-type header.
+    let ops = Router::new()
+        .route("/metrics", get(metrics::get_metrics));
+
+    api.merge(ops)
+        .layer(axum::middleware::from_fn(middleware::track_metrics))
         .layer(DefaultBodyLimit::max(max_body_size))
-        .layer(middleware::content_type_layer())
-        .with_state(pool)
+        .with_state(state)
 }

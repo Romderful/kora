@@ -726,8 +726,8 @@ async fn register_level_change_to_none_allows_incompatible() {
         .send().await.unwrap();
     assert_eq!(resp.status(), StatusCode::CONFLICT);
 
-    // Change to NONE — same schema now succeeds.
-    client.put(format!("{base}/config"))
+    // Change to NONE on the subject — same schema now succeeds.
+    client.put(format!("{base}/config/{subject}"))
         .json(&serde_json::json!({"compatibility": "NONE"}))
         .send().await.unwrap();
 
@@ -736,9 +736,6 @@ async fn register_level_change_to_none_allows_incompatible() {
         .json(&serde_json::json!({"schema": common::COMPAT_AVRO_INCOMPAT}))
         .send().await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
-
-    // Reset global back to BACKWARD for test isolation.
-    client.delete(format!("{base}/config")).send().await.unwrap();
 }
 
 /// Confluent `testCompatibilityLevelChangeToBackward`: register under FORWARD, switch to BACKWARD, reject.
