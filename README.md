@@ -96,54 +96,54 @@ Kora implements the full [Confluent Schema Registry REST API](https://docs.confl
 ### Schemas
 
 ```
-POST   /subjects/{subject}/versions              Register a schema
-GET    /subjects/{subject}/versions/{version}     Get schema by version
-GET    /subjects/{subject}/versions               List versions
-DELETE /subjects/{subject}/versions/{version}     Delete version (soft/hard)
-DELETE /subjects/{subject}                        Delete subject (soft/hard)
-POST   /subjects/{subject}                        Check if schema is registered
-GET    /schemas/ids/{id}                          Get schema by global ID
-GET    /schemas/ids/{id}/schema                   Get raw schema text
-GET    /schemas/ids/{id}/subjects                 Subjects using this schema
-GET    /schemas/ids/{id}/versions                 Versions using this schema
-GET    /subjects                                   List all subjects
-GET    /schemas                                   List all schemas
-GET    /schemas/types                             List supported types
-GET    /subjects/{subject}/versions/{version}/schema       Raw schema text
-GET    /subjects/{subject}/versions/{version}/referencedby Referenced-by IDs
+POST   /subjects/{subject}/versions                           Register a schema
+GET    /subjects/{subject}/versions/{version}                 Get schema by version
+GET    /subjects/{subject}/versions                           List versions
+DELETE /subjects/{subject}/versions/{version}                 Delete version (soft/hard)
+DELETE /subjects/{subject}                                    Delete subject (soft/hard)
+POST   /subjects/{subject}                                    Check if schema is registered
+GET    /schemas/ids/{id}                                      Get schema by global ID
+GET    /schemas/ids/{id}/schema                               Get raw schema text
+GET    /schemas/ids/{id}/subjects                             Subjects using this schema
+GET    /schemas/ids/{id}/versions                             Versions using this schema
+GET    /subjects                                              List all subjects
+GET    /schemas                                               List all schemas
+GET    /schemas/types                                         List supported types
+GET    /subjects/{subject}/versions/{version}/schema          Raw schema text
+GET    /subjects/{subject}/versions/{version}/referencedby    Referenced-by IDs
 ```
 
 ### Compatibility
 
 ```
-POST   /compatibility/subjects/{subject}/versions/{version}  Test against version
-POST   /compatibility/subjects/{subject}/versions            Test against all versions
-GET    /config                                    Get global compatibility
-PUT    /config                                    Set global compatibility
-DELETE /config                                    Reset global compatibility
-GET    /config/{subject}                          Get subject compatibility
-PUT    /config/{subject}                          Set subject compatibility
-DELETE /config/{subject}                          Reset subject compatibility
+POST   /compatibility/subjects/{subject}/versions/{version}   Test against version
+POST   /compatibility/subjects/{subject}/versions             Test against all versions
+GET    /config                                                Get global compatibility
+PUT    /config                                                Set global compatibility
+DELETE /config                                                Reset global compatibility
+GET    /config/{subject}                                      Get subject compatibility
+PUT    /config/{subject}                                      Set subject compatibility
+DELETE /config/{subject}                                      Reset subject compatibility
 ```
 
 ### Registry Mode
 
 ```
-GET    /mode                  Get global mode (READWRITE, READONLY, etc.)
-PUT    /mode                  Set global mode
-DELETE /mode                  Reset global mode
-GET    /mode/{subject}        Get subject mode
-PUT    /mode/{subject}        Set subject mode
-DELETE /mode/{subject}        Reset subject mode
+GET    /mode                                                  Get global mode
+PUT    /mode                                                  Set global mode
+DELETE /mode                                                  Reset global mode
+GET    /mode/{subject}                                        Get subject mode
+PUT    /mode/{subject}                                        Set subject mode
+DELETE /mode/{subject}                                        Reset subject mode
 ```
 
 ### Operations
 
 ```
-GET    /health                Health check (200 if DB reachable, 503 otherwise)
-GET    /metrics               Prometheus metrics
-GET    /                      Root (Confluent compatibility)
-POST   /                      Root (Confluent compatibility)
+GET    /health                                                Health check
+GET    /metrics                                               Prometheus metrics
+GET    /                                                      Root (Confluent compat)
+POST   /                                                      Root (Confluent compat)
 ```
 
 ---
@@ -269,10 +269,11 @@ docker run -p 8080:8080 -v kora-data:/var/lib/postgresql/data ghcr.io/romderful/
 
 Requires [just](https://github.com/casey/just), Rust, and Docker.
 
-```bash
+```
 just dev       # Run locally with cargo (starts PG via Docker Compose)
 just test      # Run all tests (starts PG automatically)
-just lint      # Clippy pedantic
+just fix       # Auto-fix formatting + clippy suggestions
+just ci        # fmt + lint + test (same as CI)
 just stop      # Stop all containers
 just clean     # Remove containers, images, and volumes
 ```
@@ -291,9 +292,10 @@ Override the registry: `KORA_IMAGE=my-registry.io/kora just release`
 ### All recipes
 
 ```
-[build]  build, build-embedded, release    Build + push to ghcr.io (amd64 + arm64)
-[dev]    dev, test, lint                   Local development
-[docker] run, run-embedded, stop, clean    Run images locally
+[build]   build, build-embedded, release    Build + push to ghcr.io (amd64 + arm64)
+[dev]     dev, test                         Local development
+[docker]  run, run-embedded, stop, clean    Run images locally
+[quality] fmt, lint, fix, ci                Code quality + CI entrypoint
 ```
 
 ---
