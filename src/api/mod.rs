@@ -115,7 +115,9 @@ pub fn router(pool: PgPool, metrics_handle: PrometheusHandle, max_body_size: usi
                 .put(mode::set_subject_mode)
                 .delete(mode::delete_subject_mode),
         )
-        .layer(middleware::content_type_layer());
+        .layer(axum::middleware::from_fn(
+            middleware::content_type_negotiation,
+        ));
 
     // Operational routes — no Confluent content-type header.
     let ops = Router::new().route("/metrics", get(metrics::get_metrics));

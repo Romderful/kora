@@ -4,23 +4,44 @@ use std::time::Instant;
 
 use axum::{
     extract::MatchedPath,
-    http::{HeaderName, HeaderValue, Request},
+    http::{Request, header},
     middleware::Next,
     response::IntoResponse,
 };
-use tower_http::set_header::SetResponseHeaderLayer;
 
 use crate::error::CONTENT_TYPE_SCHEMA_REGISTRY;
 
-// -- Layers --
+// -- Content-type negotiation --
 
-/// Returns a layer that sets `Content-Type: application/vnd.schemaregistry.v1+json`
-/// on every response.
-pub fn content_type_layer() -> SetResponseHeaderLayer<HeaderValue> {
-    SetResponseHeaderLayer::overriding(
-        HeaderName::from_static("content-type"),
-        HeaderValue::from_static(CONTENT_TYPE_SCHEMA_REGISTRY),
-    )
+const CONTENT_TYPE_JSON: &str = "application/json";
+
+/// Middleware that sets the response `Content-Type` based on the request `Accept`
+/// header, matching real Confluent Schema Registry behaviour:
+/// - If the client sends `Accept: application/vnd.schemaregistry.v1+json`,
+///   respond with that content type.
+/// - Otherwise, default to `application/json`.
+pub async fn content_type_negotiation(
+    req: Request<axum::body::Body>,
+    next: Next,
+) -> impl IntoResponse {
+    let use_vendor = req
+        .headers()
+        .get(header::ACCEPT)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|accept| accept.contains(CONTENT_TYPE_SCHEMA_REGISTRY));
+
+    let mut response = next.run(req).await;
+
+    let ct = if use_vendor {
+        CONTENT_TYPE_SCHEMA_REGISTRY
+    } else {
+        CONTENT_TYPE_JSON
+    };
+    response
+        .headers_mut()
+        .insert(header::CONTENT_TYPE, ct.parse().unwrap());
+
+    response
 }
 
 // -- Request instrumentation --
