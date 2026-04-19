@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3](https://github.com/Romderful/kora/compare/v0.2.2...v0.2.3) - 2026-04-19
+
+### Other
+
+- Revert "chore(deps): bump the docker-all group with 2 updates ([#15](https://github.com/Romderful/kora/pull/15))"
+- *(deps)* bump the docker-all group with 2 updates ([#15](https://github.com/Romderful/kora/pull/15))
+- configure Dependabot for automated dependency updates ([#14](https://github.com/Romderful/kora/pull/14))
+
 ## [0.2.2](https://github.com/Romderful/kora/compare/v0.2.1...v0.2.2) - 2026-04-19
 
 ### Added
