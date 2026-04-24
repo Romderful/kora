@@ -7,7 +7,10 @@ use tokio::net::TcpListener;
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt().json().init();
+    tracing_subscriber::fmt()
+        .json()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .init();
 
     let cfg = KoraConfig::load().expect("failed to load configuration");
 

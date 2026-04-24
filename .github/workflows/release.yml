@@ -2,9 +2,10 @@
 #
 # After CI passes on main, release-plz either:
 #   - Creates/updates a Release PR (version bump + CHANGELOG)
-#   - Or, if the Release PR was just merged, creates tag + GitHub Release + Docker images
+#   - Or, if the Release PR was just merged, creates tag + GitHub Release
 #
 # The Release PR is your "release button" — merge it when you want to publish.
+# On release: builds multi-arch Docker image + packages Helm chart, pushes both to GHCR.
 
 name: Release
 
@@ -20,6 +21,7 @@ concurrency:
 
 env:
   IMAGE: ghcr.io/romderful/kora
+  CHART: oci://ghcr.io/romderful/kora/charts
 
 jobs:
   release-plz:
@@ -60,23 +62,13 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
   docker:
-    name: Docker (${{ matrix.variant }})
+    name: Docker
     runs-on: ubuntu-latest
     timeout-minutes: 60
     needs: release-plz
     if: needs.release-plz.outputs.releases_created == 'true'
     permissions:
       packages: write
-
-    strategy:
-      matrix:
-        include:
-          - variant: slim
-            embedded_pg: "false"
-            tag_suffix: ""
-          - variant: embedded
-            embedded_pg: "true"
-            tag_suffix: "-embedded"
 
     steps:
       - uses: actions/checkout@v6
@@ -100,11 +92,42 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          build-args: |
-            EMBEDDED_PG=${{ matrix.embedded_pg }}
           tags: |
-            ${{ env.IMAGE }}:v${{ needs.release-plz.outputs.version }}${{ matrix.tag_suffix }}
-            ${{ env.IMAGE }}:latest${{ matrix.tag_suffix }}
+            ${{ env.IMAGE }}:v${{ needs.release-plz.outputs.version }}
+            ${{ env.IMAGE }}:latest
           provenance: false
-          cache-from: type=gha,scope=${{ matrix.variant }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.variant }}
+          cache-from: type=gha,scope=docker
+          cache-to: type=gha,mode=max,scope=docker
+
+  helm:
+    name: Helm chart
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [release-plz, docker]
+    if: needs.release-plz.outputs.releases_created == 'true'
+    permissions:
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Stamp chart version
+        run: |
+          VERSION=${{ needs.release-plz.outputs.version }}
+          sed -i "s/^version:.*/version: ${VERSION}/" chart/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: ${VERSION}/" chart/Chart.yaml
+
+      - name: Lint chart
+        run: helm lint chart/ --set database.host=lint --set database.password=lint
+
+      - name: Package chart
+        run: helm package chart/
+
+      - name: Push chart to GHCR
+        run: helm push kora-*.tgz ${{ env.CHART }}

@@ -1,0 +1,4 @@
+Kora {{ .Chart.AppVersion }} deployed.
+
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "kora.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }}
+  curl http://127.0.0.1:{{ .Values.service.port }}/health

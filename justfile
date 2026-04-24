@@ -61,21 +61,10 @@ ci: fmt lint test
 
 # ---------- Build & Push ----------
 
-# Build + push slim image (amd64 + arm64)
+# Build + push image (amd64 + arm64)
 [group('build')]
 build tag="latest":
-    docker buildx build --platform {{ platforms }} --provenance=false --build-arg EMBEDDED_PG=false -t {{ image }}:{{ tag }} --push .
-
-# Build + push all-in-one image (amd64 + arm64)
-[group('build')]
-build-embedded tag="latest-embedded":
     docker buildx build --platform {{ platforms }} --provenance=false -t {{ image }}:{{ tag }} --push .
-
-# Build + push both images (slim last → featured on ghcr.io)
-[group('build')]
-release tag="latest":
-    just build-embedded {{ tag }}-embedded
-    just build {{ tag }}
 
 # ---------- Load testing ----------
 
@@ -151,15 +140,10 @@ loadtest-stop:
 
 # ---------- Docker (local) ----------
 
-# Run slim image locally (needs DATABASE_URL)
+# Run image locally (needs DATABASE_URL)
 [group('docker')]
 run db_url:
     docker run --rm --network host --name kora -e "DATABASE_URL={{ db_url }}" {{ image }}:latest
-
-# Run all-in-one image locally
-[group('docker')]
-run-embedded:
-    docker run --rm -p 8080:8080 --name kora {{ image }}:latest-embedded
 
 # Stop Kora and compose services
 [group('docker')]
@@ -171,5 +155,5 @@ stop:
 [group('docker')]
 clean:
     -docker rm -f kora
-    -docker rmi {{ image }}:latest {{ image }}:latest-embedded
+    -docker rmi {{ image }}:latest
     -docker compose down -v

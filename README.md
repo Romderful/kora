@@ -32,27 +32,9 @@ PostgreSQL storage · Single binary · Sub-millisecond lookups · Zero JVM overh
 
 ## Quick Start
 
-### All-in-one (embedded PostgreSQL)
-
-```bash
-docker run -p 8080:8080 ghcr.io/romderful/kora:latest-embedded
-```
-
-That's it. PostgreSQL starts automatically inside the container. Data is ephemeral by default — add a volume for persistence:
-
-```bash
-docker run -p 8080:8080 -v kora-data:/var/lib/postgresql/data ghcr.io/romderful/kora:latest-embedded
-```
-
-> **Note:** The embedded image is designed for standalone, edge, and demo use cases. For production workloads, prefer the slim image with an external PostgreSQL — it gives you independent backups, scaling, and version upgrades.
-
-### With an external PostgreSQL
-
 ```bash
 docker run -p 8080:8080 -e DATABASE_URL="postgres://user:pass@host:5432/kora" ghcr.io/romderful/kora:latest
 ```
-
-### Verify
 
 ```bash
 curl http://localhost:8080/health
@@ -61,16 +43,15 @@ curl http://localhost:8080/health
 
 ---
 
-## Images
+## Image
 
-Two multi-arch images (linux/amd64 + linux/arm64) are published to GitHub Container Registry:
+A multi-arch image (linux/amd64 + linux/arm64) is published to GitHub Container Registry:
 
-| Image | Tag | Size | Use case |
-|---|---|---|---|
-| `ghcr.io/romderful/kora` | `latest` | ~24 MB | Production with external PostgreSQL |
-| `ghcr.io/romderful/kora` | `latest-embedded` | ~73 MB | Standalone, edge, demos |
+| Image | Tag | Size |
+|---|---|---|
+| `ghcr.io/romderful/kora` | `latest`, `v{version}` | ~24 MB |
 
-The `latest` (slim) image contains Kora, tini, and migrations. The `latest-embedded` image additionally bundles PostgreSQL 17, auto-initializes on first boot, and shuts down gracefully on `docker stop`.
+The image contains a static Rust binary, tini, and SQL migrations. It requires an external PostgreSQL instance via `DATABASE_URL`.
 
 ---
 
@@ -80,14 +61,12 @@ All configuration is done via environment variables:
 
 | Variable | Default | Description |
 |---|---|---|
-| `DATABASE_URL` | — (required for slim) | PostgreSQL connection string |
+| `DATABASE_URL` | — (required) | PostgreSQL connection string |
 | `HOST` | `0.0.0.0` | Server bind address |
 | `PORT` | `8080` | Server listen port |
 | `MAX_BODY_SIZE` | `16777216` | Maximum request body size (bytes, default 16 MB) |
 | `DB_POOL_MAX` | `20` | Maximum database connections in the pool |
 | `RUST_LOG` | `info` | Log level filter (`error`, `warn`, `info`, `debug`, `trace`) |
-
-The embedded image auto-generates `DATABASE_URL` when none is provided. If `DATABASE_URL` is set, embedded PostgreSQL is skipped entirely — even on the embedded image.
 
 ---
 
@@ -180,54 +159,22 @@ Default: `BACKWARD` (matches Confluent).
 
 ## Deployment
 
-### Kubernetes (external PostgreSQL)
+### Helm
 
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: kora
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: kora
-  template:
-    metadata:
-      labels:
-        app: kora
-    spec:
-      containers:
-        - name: kora
-          image: ghcr.io/romderful/kora:latest
-          ports:
-            - containerPort: 8080
-          env:
-            - name: DATABASE_URL
-              valueFrom:
-                secretKeyRef:
-                  name: kora-db
-                  key: url
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: 8080
-            initialDelaySeconds: 2
-            periodSeconds: 5
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: 8080
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          resources:
-            requests:
-              cpu: 100m
-              memory: 64Mi
-            limits:
-              cpu: 500m
-              memory: 128Mi
+```bash
+helm install kora oci://ghcr.io/romderful/kora/charts/kora \
+  --set database.host=my-postgres.example.com \
+  --set database.password=secret
 ```
+
+Or with a full URL:
+
+```bash
+helm install kora oci://ghcr.io/romderful/kora/charts/kora \
+  --set database.url="postgres://kora:secret@postgres:5432/kora?sslmode=require"
+```
+
+See [`chart/README.md`](chart/README.md) for all options.
 
 ### Docker Compose
 
@@ -255,14 +202,10 @@ volumes:
   pgdata:
 ```
 
-### Standalone (embedded PostgreSQL)
+### Docker
 
 ```bash
-# Ephemeral (data lost on container removal)
-docker run -p 8080:8080 ghcr.io/romderful/kora:latest-embedded
-
-# Persistent
-docker run -p 8080:8080 -v kora-data:/var/lib/postgresql/data ghcr.io/romderful/kora:latest-embedded
+docker run -p 8080:8080 -e DATABASE_URL="postgres://user:pass@host:5432/kora" ghcr.io/romderful/kora:latest
 ```
 
 ---
@@ -283,22 +226,20 @@ just clean     # Remove containers, images, and volumes
 ### Build & Publish
 
 ```bash
-just release             # Build + push both images (multi-arch)
-just release v0.4.0      # Tagged release
-just build               # Slim image only
-just build-embedded      # Embedded image only
+just build               # Build + push image (multi-arch)
+just build v0.4.0        # Tagged build
 ```
 
-Override the registry: `KORA_IMAGE=my-registry.io/kora just release`
+Override the registry: `KORA_IMAGE=my-registry.io/kora just build`
 
 ### All recipes
 
 ```
-[build]    build, build-embedded, release          Build + push to ghcr.io (amd64 + arm64)
-[dev]      dev, test                               Local development
-[docker]   run, run-embedded, stop, clean          Run images locally
-[loadtest] smoke, load, stress, soak, contention   k6 load tests (requires k6)
-[quality]  fmt, lint, fix, ci                      Code quality + CI entrypoint
+[build]    build                                    Build + push to ghcr.io (amd64 + arm64)
+[dev]      dev, test                                Local development
+[docker]   run, stop, clean                         Run images locally
+[loadtest] smoke, load, stress, soak, contention    k6 load tests (requires k6)
+[quality]  fmt, lint, fix, ci                       Code quality + CI entrypoint
 ```
 
 ---

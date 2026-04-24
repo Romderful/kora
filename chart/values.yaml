@@ -1,0 +1,101 @@
+## @section Image parameters
+## @param image.registry Kora image registry
+## @param image.repository Kora image repository
+## @param image.tag Kora image tag (defaults to "v{appVersion}")
+## @param image.pullPolicy Kora image pull policy
+image:
+  registry: ghcr.io
+  repository: romderful/kora
+  tag: ""
+  pullPolicy: IfNotPresent
+
+## @section Kora configuration
+## @param kora.port Server listen port
+## @param kora.dbPoolMax Maximum database connections in pool
+## @param kora.maxBodySize Maximum request body size in bytes
+## @param kora.logLevel Log level (RUST_LOG, e.g. info, debug, kora=trace)
+## @param kora.extraEnvVars Extra environment variables for the Kora container
+kora:
+  port: 8080
+  dbPoolMax: 20
+  maxBodySize: 16777216
+  logLevel: "info"
+  extraEnvVars: []
+
+## @section Database parameters (external PostgreSQL — REQUIRED)
+## @param database.host PostgreSQL host (REQUIRED unless url or existingSecret is set)
+## @param database.port PostgreSQL port
+## @param database.user PostgreSQL user
+## @param database.password PostgreSQL password (ignored if existingSecret is set)
+## @param database.name PostgreSQL database name
+## @param database.url Full DATABASE_URL override (takes priority, for SSL params etc.)
+## @param database.existingSecret Name of existing Secret containing DATABASE_URL
+## @param database.existingSecretKey Key in the existing Secret
+database:
+  host: ""
+  port: 5432
+  user: "kora"
+  password: ""
+  name: "kora"
+  url: ""
+  existingSecret: ""
+  existingSecretKey: "DATABASE_URL"
+
+## @section Deployment parameters
+## @param replicaCount Number of Kora replicas
+## @param nameOverride Partial override for resource names
+## @param fullnameOverride Full override for resource names
+replicaCount: 1
+nameOverride: ""
+fullnameOverride: ""
+
+## @section Resource parameters
+## @param resources.requests.cpu CPU request
+## @param resources.requests.memory Memory request
+## @param resources.limits.cpu CPU limit
+## @param resources.limits.memory Memory limit
+resources:
+  requests:
+    cpu: 100m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+## @section Security parameters
+## @param podSecurityContext Pod-level security context
+## @param containerSecurityContext Container-level security context
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  runAsUser: 65534
+  runAsGroup: 65534
+  runAsNonRoot: true
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+
+## @section Service parameters
+## @param service.type Kubernetes Service type
+## @param service.port Service HTTP port
+## @param service.annotations Service annotations
+service:
+  type: ClusterIP
+  port: 8080
+  annotations: {}
+
+## @section Scheduling parameters
+## @param nodeSelector Node labels for pod assignment
+## @param tolerations Tolerations for pod assignment
+## @param affinity Affinity rules for pod assignment
+## @param podAnnotations Pod annotations
+## @param podLabels Extra pod labels
+nodeSelector: {}
+tolerations: []
+affinity: {}
+podAnnotations: {}
+podLabels: {}

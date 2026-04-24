@@ -21,7 +21,7 @@ thiserror = "2.0.18"
 tokio = { version = "1.51.0", features = ["full"] }
 tower-http = { version = "0.6.8", features = ["set-header"] }
 tracing = "0.1.44"
-tracing-subscriber = { version = "0.3.23", features = ["json"] }
+tracing-subscriber = { version = "0.3.23", features = ["json", "env-filter"] }
 uuid = { version = "1.23.0", features = ["v4", "serde"] }
 
 [profile.release]
