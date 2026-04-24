@@ -17,3 +17,9 @@ keywords:
   - protobuf
   - json-schema
   - kafka
+dependencies:
+  - name: common
+    version: 2.x.x
+    repository: oci://registry-1.docker.io/bitnamicharts
+    tags:
+      - bitnami-common

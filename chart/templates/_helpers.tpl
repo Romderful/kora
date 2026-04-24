@@ -1,51 +1,28 @@
 {{/*
-Expand the name of the chart.
-*/}}
-{{- define "kora.name" -}}
-{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
-{{- end }}
-
-{{/*
-Create a default fully qualified app name.
-*/}}
-{{- define "kora.fullname" -}}
-{{- if .Values.fullnameOverride }}
-{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- $name := default .Chart.Name .Values.nameOverride }}
-{{- if contains $name .Release.Name }}
-{{- .Release.Name | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
-{{- end }}
-{{- end }}
-{{- end }}
-
-{{/*
-Standard labels.
-*/}}
-{{- define "kora.labels" -}}
-helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
-{{ include "kora.selectorLabels" . }}
-app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
-app.kubernetes.io/managed-by: {{ .Release.Service }}
-{{- end }}
-
-{{/*
-Selector labels.
-*/}}
-{{- define "kora.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "kora.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
-{{- end }}
-
-{{/*
-Return the proper image name.
+Return the proper Kora image name.
 */}}
 {{- define "kora.image" -}}
-{{- $tag := .Values.image.tag | default (printf "v%s" .Chart.AppVersion) -}}
-{{- printf "%s/%s:%s" .Values.image.registry .Values.image.repository $tag -}}
-{{- end }}
+{{- $imageRoot := dict "registry" .Values.image.registry "repository" .Values.image.repository "tag" (.Values.image.tag | default (printf "v%s" .Chart.AppVersion)) "digest" .Values.image.digest -}}
+{{ include "common.images.image" (dict "imageRoot" $imageRoot "global" .Values.global) }}
+{{- end -}}
+
+{{/*
+Return the proper Docker Image Registry Secret Names.
+*/}}
+{{- define "kora.imagePullSecrets" -}}
+{{- include "common.images.renderPullSecrets" (dict "images" (list .Values.image) "context" $) -}}
+{{- end -}}
+
+{{/*
+Create the name of the service account to use.
+*/}}
+{{- define "kora.serviceAccountName" -}}
+{{- if .Values.serviceAccount.create -}}
+    {{ default (include "common.names.fullname" .) .Values.serviceAccount.name }}
+{{- else -}}
+    {{ default "default" .Values.serviceAccount.name }}
+{{- end -}}
+{{- end -}}
 
 {{/*
 Build DATABASE_URL from components.
@@ -66,7 +43,7 @@ Return the name of the database secret.
 {{- if .Values.database.existingSecret }}
 {{- .Values.database.existingSecret }}
 {{- else }}
-{{- include "kora.fullname" . }}-db
+{{- include "common.names.fullname" . }}-db
 {{- end }}
 {{- end }}
 

@@ -123,6 +123,9 @@ jobs:
           sed -i "s/^version:.*/version: ${VERSION}/" chart/Chart.yaml
           sed -i "s/^appVersion:.*/appVersion: ${VERSION}/" chart/Chart.yaml
 
+      - name: Build Helm dependencies
+        run: helm dependency build chart/
+
       - name: Lint chart
         run: helm lint chart/ --set database.host=lint --set database.password=lint
 
