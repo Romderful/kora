@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4](https://github.com/Romderful/kora/compare/v0.2.3...v0.2.4) - 2026-04-25
+
+### Added
+
+- add Bitnami-style Helm chart for Kubernetes deployment ([#23](https://github.com/Romderful/kora/pull/23))
+
 ## [0.2.3](https://github.com/Romderful/kora/compare/v0.2.2...v0.2.3) - 2026-04-19
 
 ### Other
