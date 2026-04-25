@@ -3,3 +3,4 @@
 .github/copilot-instructions.md
 .github/hooks/
 test-artifacts/
+chart/charts/

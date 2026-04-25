@@ -1,0 +1,333 @@
+## @section Global parameters
+## @param global.imageRegistry Global Docker image registry
+## @param global.imagePullSecrets Global Docker registry secret names as an array
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+
+## @section Common parameters
+## @param nameOverride String to partially override common.names.fullname
+## @param fullnameOverride String to fully override common.names.fullname
+## @param namespaceOverride String to fully override common.names.namespace
+## @param commonLabels Labels to add to all deployed objects
+## @param commonAnnotations Annotations to add to all deployed objects
+## @param extraDeploy Array of extra objects to deploy with the release
+nameOverride: ""
+fullnameOverride: ""
+namespaceOverride: ""
+commonLabels: {}
+commonAnnotations: {}
+extraDeploy: []
+
+## @section Image parameters
+## @param image.registry Kora image registry
+## @param image.repository Kora image repository
+## @param image.tag Kora image tag (defaults to "v{appVersion}")
+## @param image.digest Kora image digest in sha256:aa... format (overrides tag)
+## @param image.pullPolicy Kora image pull policy
+## @param image.pullSecrets Kora image pull secrets
+image:
+  registry: ghcr.io
+  repository: romderful/kora
+  tag: ""
+  digest: ""
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+## @section Kora configuration
+## @param kora.port Server listen port
+## @param kora.dbPoolMax Maximum database connections in pool
+## @param kora.maxBodySize Maximum request body size in bytes
+## @param kora.logLevel Log level (RUST_LOG, e.g. info, debug, kora=trace)
+## @param kora.extraEnvVars Array with extra environment variables
+## @param kora.extraEnvVarsCM Name of existing ConfigMap containing extra env vars
+## @param kora.extraEnvVarsSecret Name of existing Secret containing extra env vars
+kora:
+  port: 8080
+  dbPoolMax: 20
+  maxBodySize: 16777216
+  logLevel: "info"
+  extraEnvVars: []
+  extraEnvVarsCM: ""
+  extraEnvVarsSecret: ""
+
+## @section Database parameters (external PostgreSQL — REQUIRED)
+## @param database.host PostgreSQL host (REQUIRED unless url or existingSecret is set)
+## @param database.port PostgreSQL port
+## @param database.user PostgreSQL user
+## @param database.password PostgreSQL password (ignored if existingSecret is set)
+## @param database.name PostgreSQL database name
+## @param database.url Full DATABASE_URL override (takes priority, for SSL params etc.)
+## @param database.existingSecret Name of existing Secret containing DATABASE_URL
+## @param database.existingSecretKey Key in the existing Secret
+database:
+  host: ""
+  port: 5432
+  user: "kora"
+  password: ""
+  name: "kora"
+  url: ""
+  existingSecret: ""
+  existingSecretKey: "DATABASE_URL"
+
+## @section Deployment parameters
+## @param replicaCount Number of Kora replicas
+## @param updateStrategy.type Deployment strategy type
+## @param deploymentAnnotations Annotations for the Deployment resource
+## @param podAnnotations Annotations for pods
+## @param podLabels Extra labels for pods
+replicaCount: 1
+updateStrategy:
+  type: RollingUpdate
+deploymentAnnotations: {}
+podAnnotations: {}
+podLabels: {}
+
+## @section Pod parameters
+## @param terminationGracePeriodSeconds Seconds pods need to terminate gracefully
+## @param schedulerName Name of the k8s scheduler
+## @param priorityClassName Pods priorityClassName
+## @param automountServiceAccountToken Mount Service Account token in pods
+## @param initContainers Add additional init containers
+## @param sidecars Add additional sidecar containers
+terminationGracePeriodSeconds: 30
+schedulerName: ""
+priorityClassName: ""
+automountServiceAccountToken: false
+initContainers: []
+sidecars: []
+
+## @section Security parameters
+## @param podSecurityContext.enabled Enable pod security context
+## @param podSecurityContext.runAsNonRoot Force non-root user
+## @param podSecurityContext.fsGroup Set fsGroup
+## @param podSecurityContext.seccompProfile.type Set seccomp profile
+podSecurityContext:
+  enabled: true
+  runAsNonRoot: true
+  fsGroup: 65534
+  seccompProfile:
+    type: RuntimeDefault
+
+## @param containerSecurityContext.enabled Enable container security context
+## @param containerSecurityContext.runAsUser Set runAsUser
+## @param containerSecurityContext.runAsGroup Set runAsGroup
+## @param containerSecurityContext.runAsNonRoot Force non-root
+## @param containerSecurityContext.readOnlyRootFilesystem Read-only root filesystem
+## @param containerSecurityContext.allowPrivilegeEscalation Disallow privilege escalation
+## @param containerSecurityContext.capabilities.drop List of capabilities to drop
+## @param containerSecurityContext.seccompProfile.type Set container seccomp profile
+containerSecurityContext:
+  enabled: true
+  runAsUser: 65534
+  runAsGroup: 65534
+  runAsNonRoot: true
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+  seccompProfile:
+    type: RuntimeDefault
+
+## @section Probe parameters
+## @param startupProbe.enabled Enable startupProbe
+## @param startupProbe.httpGet.path Path for startupProbe
+## @param startupProbe.httpGet.port Port for startupProbe
+## @param startupProbe.periodSeconds Period seconds for startupProbe
+## @param startupProbe.failureThreshold Failure threshold for startupProbe
+## @param startupProbe.timeoutSeconds Timeout seconds for startupProbe
+startupProbe:
+  enabled: true
+  httpGet:
+    path: /health
+    port: http
+  periodSeconds: 2
+  failureThreshold: 30
+  timeoutSeconds: 3
+
+## @param readinessProbe.enabled Enable readinessProbe
+## @param readinessProbe.httpGet.path Path for readinessProbe
+## @param readinessProbe.httpGet.port Port for readinessProbe
+## @param readinessProbe.initialDelaySeconds Initial delay seconds for readinessProbe
+## @param readinessProbe.periodSeconds Period seconds for readinessProbe
+## @param readinessProbe.timeoutSeconds Timeout seconds for readinessProbe
+## @param readinessProbe.failureThreshold Failure threshold for readinessProbe
+readinessProbe:
+  enabled: true
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+## @param livenessProbe.enabled Enable livenessProbe
+## @param livenessProbe.tcpSocket.port Port for livenessProbe (TCP to avoid PG restart loop)
+## @param livenessProbe.initialDelaySeconds Initial delay seconds for livenessProbe
+## @param livenessProbe.periodSeconds Period seconds for livenessProbe
+## @param livenessProbe.timeoutSeconds Timeout seconds for livenessProbe
+## @param livenessProbe.failureThreshold Failure threshold for livenessProbe
+livenessProbe:
+  enabled: true
+  tcpSocket:
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 6
+
+## @param customStartupProbe Custom startupProbe (overrides default)
+## @param customReadinessProbe Custom readinessProbe (overrides default)
+## @param customLivenessProbe Custom livenessProbe (overrides default)
+customStartupProbe: {}
+customReadinessProbe: {}
+customLivenessProbe: {}
+
+## @section Lifecycle parameters
+## @param lifecycleHooks Lifecycle hooks for containers
+lifecycleHooks:
+  preStop:
+    exec:
+      command: ["sleep", "3"]
+
+## @section Resource parameters
+## @param resources.requests.cpu CPU request
+## @param resources.requests.memory Memory request
+## @param resources.limits.cpu CPU limit
+## @param resources.limits.memory Memory limit
+resources:
+  requests:
+    cpu: 100m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+## @section Service parameters
+## @param service.type Kubernetes Service type
+## @param service.ports.http Service HTTP port
+## @param service.nodePorts.http Node port for HTTP
+## @param service.clusterIP Static ClusterIP
+## @param service.loadBalancerIP Static LoadBalancer IP
+## @param service.loadBalancerSourceRanges Restrict LB to source ranges
+## @param service.externalTrafficPolicy External traffic policy
+## @param service.annotations Service annotations
+service:
+  type: ClusterIP
+  ports:
+    http: 8080
+  nodePorts:
+    http: ""
+  clusterIP: ""
+  loadBalancerIP: ""
+  loadBalancerSourceRanges: []
+  externalTrafficPolicy: Cluster
+  annotations: {}
+
+## @section Service Account parameters
+## @param serviceAccount.create Create a ServiceAccount
+## @param serviceAccount.name ServiceAccount name override
+## @param serviceAccount.annotations ServiceAccount annotations (e.g. for IRSA, Workload Identity)
+## @param serviceAccount.automountServiceAccountToken Mount API token in pods
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+  automountServiceAccountToken: false
+
+## @section Ingress parameters
+## @param ingress.enabled Enable ingress
+## @param ingress.pathType Ingress path type
+## @param ingress.hostname Default hostname
+## @param ingress.path Default path
+## @param ingress.ingressClassName Ingress class name
+## @param ingress.annotations Ingress annotations
+## @param ingress.tls Enable TLS
+## @param ingress.selfSigned Generate self-signed TLS cert
+## @param ingress.extraHosts Additional hostnames
+## @param ingress.extraTls Additional TLS configuration
+## @param ingress.secrets Custom TLS certificates as secrets
+## @param ingress.extraRules Additional ingress rules
+ingress:
+  enabled: false
+  pathType: ImplementationSpecific
+  hostname: kora.local
+  path: /
+  ingressClassName: ""
+  annotations: {}
+  tls: false
+  selfSigned: false
+  extraHosts: []
+  extraTls: []
+  secrets: []
+  extraRules: []
+
+## @section Metrics parameters
+## @param metrics.enabled Enable metrics endpoint annotations
+## @param metrics.serviceMonitor.enabled Enable ServiceMonitor for Prometheus Operator
+## @param metrics.serviceMonitor.namespace ServiceMonitor namespace
+## @param metrics.serviceMonitor.interval Scrape interval
+## @param metrics.serviceMonitor.scrapeTimeout Scrape timeout
+## @param metrics.serviceMonitor.labels Extra labels for ServiceMonitor
+## @param metrics.serviceMonitor.annotations ServiceMonitor annotations
+## @param metrics.serviceMonitor.honorLabels Honor metric labels
+## @param metrics.serviceMonitor.metricRelabelings Metric relabelings
+## @param metrics.serviceMonitor.relabelings Relabelings
+metrics:
+  enabled: false
+  serviceMonitor:
+    enabled: false
+    namespace: ""
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}
+    annotations: {}
+    honorLabels: false
+    metricRelabelings: []
+    relabelings: []
+
+## @section Autoscaling parameters
+## @param autoscaling.enabled Enable HPA
+## @param autoscaling.minReplicas Minimum replicas
+## @param autoscaling.maxReplicas Maximum replicas
+## @param autoscaling.targetCPU Target CPU utilization percentage
+## @param autoscaling.targetMemory Target Memory utilization percentage
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPU: 80
+  targetMemory: ""
+
+## @section PDB parameters
+## @param pdb.create Enable PodDisruptionBudget
+## @param pdb.minAvailable Minimum available pods
+## @param pdb.maxUnavailable Maximum unavailable pods
+pdb:
+  create: false
+  minAvailable: ""
+  maxUnavailable: 1
+
+## @section Network Policy parameters
+## @param networkPolicy.enabled Enable NetworkPolicy
+## @param networkPolicy.allowExternal Allow external connections
+## @param networkPolicy.allowExternalEgress Allow external egress
+## @param networkPolicy.extraIngress Additional ingress rules
+## @param networkPolicy.extraEgress Additional egress rules
+networkPolicy:
+  enabled: false
+  allowExternal: true
+  allowExternalEgress: true
+  extraIngress: []
+  extraEgress: []
+
+## @section Scheduling parameters
+## @param nodeSelector Node labels for pod assignment
+## @param tolerations Tolerations for pod assignment
+## @param affinity Affinity rules for pod assignment
+## @param topologySpreadConstraints Topology Spread Constraints
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
