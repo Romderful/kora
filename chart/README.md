@@ -153,15 +153,20 @@ All probes have an `enabled` flag and can be fully overridden via `custom*Probe`
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `startupProbe.enabled` | Enable startup probe | `true` |
+| `startupProbe.httpGet.path` | Startup probe path | `/health` |
+| `startupProbe.httpGet.port` | Startup probe port | `http` |
 | `startupProbe.periodSeconds` | Period | `2` |
 | `startupProbe.failureThreshold` | Failure threshold | `30` |
 | `startupProbe.timeoutSeconds` | Timeout | `3` |
 | `readinessProbe.enabled` | Enable readiness probe | `true` |
+| `readinessProbe.httpGet.path` | Readiness probe path | `/health` |
+| `readinessProbe.httpGet.port` | Readiness probe port | `http` |
 | `readinessProbe.initialDelaySeconds` | Initial delay | `5` |
 | `readinessProbe.periodSeconds` | Period | `5` |
 | `readinessProbe.timeoutSeconds` | Timeout | `3` |
 | `readinessProbe.failureThreshold` | Failure threshold | `3` |
 | `livenessProbe.enabled` | Enable liveness probe (TCP) | `true` |
+| `livenessProbe.tcpSocket.port` | Liveness probe port | `http` |
 | `livenessProbe.initialDelaySeconds` | Initial delay | `10` |
 | `livenessProbe.periodSeconds` | Period | `10` |
 | `livenessProbe.timeoutSeconds` | Timeout | `3` |

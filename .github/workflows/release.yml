@@ -115,14 +115,16 @@ jobs:
         uses: azure/setup-helm@v4
 
       - name: Log in to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
+        env:
+          HELM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "${HELM_TOKEN}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: Stamp chart version
         env:
           VERSION: ${{ needs.release-plz.outputs.version }}
         run: |
-          sed -i "s/^version:.*/version: ${VERSION}/" chart/Chart.yaml
-          sed -i "s/^appVersion:.*/appVersion: ${VERSION}/" chart/Chart.yaml
+          sed -i "s|^version:.*|version: ${VERSION}|" chart/Chart.yaml
+          sed -i "s|^appVersion:.*|appVersion: ${VERSION}|" chart/Chart.yaml
 
       - name: Build Helm dependencies
         run: helm dependency build chart/
