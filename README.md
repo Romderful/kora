@@ -53,7 +53,7 @@ helm install kora oci://ghcr.io/romderful/kora/charts/kora \
   --set database.password=secret
 ```
 
-See [`chart/README.md`](chart/README.md) for all options (~95 parameters).
+See [`chart/README.md`](chart/README.md) for all options.
 
 ### Docker
 
@@ -78,7 +78,7 @@ Kora implements the full [Confluent Schema Registry REST API](https://docs.confl
 
 ## Development
 
-Requires [just](https://github.com/casey/just), Rust, and Docker.
+Requires [just](https://github.com/casey/just), [Rust](https://rustup.rs/), and [Docker](https://docs.docker.com/get-docker/).
 
 ```bash
 just dev    # Run locally (starts PG via Docker Compose)
