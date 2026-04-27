@@ -1393,6 +1393,7 @@ dependencies = [
  "apache-avro",
  "axum",
  "figment",
+ "hex",
  "jsonschema",
  "metrics",
  "metrics-exporter-prometheus",
