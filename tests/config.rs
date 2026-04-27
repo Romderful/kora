@@ -46,6 +46,7 @@ fn load_uses_database_url_env_when_set() {
 #[test]
 fn load_composes_database_url_from_components() {
     Jail::expect_with(|jail| {
+        jail.set_env("DATABASE_URL", "");
         jail.set_env("DB_HOST", "pg.local");
         jail.set_env("DB_PORT", "6543");
         jail.set_env("DB_USER", "ko@ra");
@@ -64,7 +65,8 @@ fn load_composes_database_url_from_components() {
 
 #[test]
 fn load_errors_when_neither_url_nor_components_provided() {
-    Jail::expect_with(|_jail| {
+    Jail::expect_with(|jail| {
+        jail.set_env("DATABASE_URL", "");
         let err = KoraConfig::load().expect_err("load should fail");
         let msg = err.to_string();
 
